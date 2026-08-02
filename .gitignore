@@ -1,0 +1,23 @@
+# AutoHotkey / local runtime artifacts
+*.exe
+*.zip
+*.log
+*.bak
+*.tmp
+
+# Build and generated output
+dist/
+outputs/
+build/
+release/
+
+# Python cache from recognition tooling
+__pycache__/
+*.py[cod]
+
+# Editor/system files
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
+
