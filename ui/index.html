@@ -25,7 +25,7 @@
           <span id="stop-pill">停止键：Z</span>
           <label class="backdrop-control" title="调整动态背景亮度">
             <span>背景</span>
-            <input id="background-opacity" type="range" min="0.15" max="1" step="0.05" value="0.7" />
+            <input id="background-opacity" type="range" min="0.15" max="1" step="0.05" value="0.58" />
           </label>
           <div class="zoom-control" aria-label="界面缩放">
             <button id="zoom-out" type="button" title="缩小界面" aria-label="缩小界面">−</button>
@@ -101,16 +101,7 @@
         </aside>
       </section>
 
-      <section class="bottom-row">
-        <div class="panel cooldown-panel">
-          <div class="panel-title">
-            <span>技能 CD 计时器</span>
-            <small>第一版：手动点击开始倒计时</small>
-          </div>
-          <div id="cooldown-list" class="cooldown-list"></div>
-        </div>
-        <div id="status-bar" class="status-bar">正在读取配置...</div>
-      </section>
+      <div id="status-bar" class="status-bar" role="status" aria-live="polite">正在读取配置...</div>
     </main>
 
     <script src="./scripts/app.js"></script>

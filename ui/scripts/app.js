@@ -1,13 +1,17 @@
 const state = {
   project: null,
   selectedFlow: 1,
-  cooldownEnds: new Map(),
 };
 
 const $ = (id) => document.getElementById(id);
+let statusTimer;
 
 function setStatus(text) {
-  $("status-bar").textContent = text;
+  const status = $("status-bar");
+  window.clearTimeout(statusTimer);
+  status.textContent = text;
+  status.classList.add("visible");
+  statusTimer = window.setTimeout(() => status.classList.remove("visible"), 3600);
 }
 
 function render(project) {
@@ -27,7 +31,6 @@ function render(project) {
   renderFlows(project);
   renderSelectedFlow(project);
   renderBindings(project);
-  renderCooldowns(project);
   setStatus(project.toast || "配置已载入。新版 UI 目前负责展示与保存用户按键，宏执行仍使用旧版 AHK 逻辑。");
 }
 
@@ -102,30 +105,6 @@ function renderBindings(project) {
   )).join("");
 }
 
-function renderCooldowns(project) {
-  $("cooldown-list").innerHTML = project.keyMap.skills.map((skill) => (
-    `<div class="cooldown-card" data-cd="${skill.slot}">
-      <strong>S${skill.slot} ${escapeHtml(skill.key || "-")}</strong>
-      <span class="cooldown-time" data-time="${skill.slot}">就绪</span>
-      <button type="button" data-start="${skill.slot}">${skill.cooldown || 0}s</button>
-    </div>`
-  )).join("");
-
-  document.querySelectorAll("[data-start]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const slot = Number(button.dataset.start);
-      const skill = state.project.keyMap.skills.find((item) => item.slot === slot);
-      const seconds = Number(skill?.cooldown || 0);
-      if (seconds <= 0) {
-        setStatus(`S${slot} 未设置 CD 秒数。`);
-        return;
-      }
-      state.cooldownEnds.set(slot, Date.now() + seconds * 1000);
-      tickCooldowns();
-    });
-  });
-}
-
 function collectBindings() {
   const skills = Array.from(document.querySelectorAll("[data-skill]")).map((row) => ({
     slot: Number(row.dataset.skill),
@@ -147,16 +126,6 @@ function collectBindings() {
   });
 
   return { skills, items, farms };
-}
-
-function tickCooldowns() {
-  const now = Date.now();
-  document.querySelectorAll("[data-time]").forEach((node) => {
-    const slot = Number(node.dataset.time);
-    const end = state.cooldownEnds.get(slot) || 0;
-    const left = Math.max(0, Math.ceil((end - now) / 1000));
-    node.textContent = left > 0 ? `${left}s` : "就绪";
-  });
 }
 
 function updateZoomLabel(percent) {
@@ -200,7 +169,7 @@ $("zoom-in").addEventListener("click", async () => {
 $("background-opacity").addEventListener("input", (event) => {
   const opacity = event.target.value;
   $("background-video").style.opacity = opacity;
-  localStorage.setItem("fireWill.backgroundOpacity", opacity);
+  localStorage.setItem("fireWill.backgroundOpacity.v3", opacity);
 });
 
 async function initialize() {
@@ -212,7 +181,7 @@ async function initialize() {
   const assets = await window.fireWill.getAssets();
   $("background-video").src = assets.backgroundVideo;
   $("brand-icon").src = assets.iconPng;
-  const backgroundOpacity = localStorage.getItem("fireWill.backgroundOpacity") || "0.7";
+  const backgroundOpacity = localStorage.getItem("fireWill.backgroundOpacity.v3") || "0.58";
   $("background-opacity").value = backgroundOpacity;
   $("background-video").style.opacity = backgroundOpacity;
   window.fireWill.onZoomChanged(updateZoomLabel);
@@ -221,5 +190,3 @@ async function initialize() {
 }
 
 initialize();
-
-setInterval(tickCooldowns, 250);
