@@ -44,7 +44,7 @@ npm run dist
 - `electron/main.js`：本地主进程、INI 读写和 AHK 执行器启动
 - `electron/preload.js`：隔离的前端/本地能力桥接
 - `electron/backend/`：内置 AHK 执行器、配置和英雄档案
-- `ui/`：全屏视频背景、响应式流程编排 UI 和技能 CD 计时器
+- `ui/`：全屏视频背景与按旧版 AHK `BuildGui()` 顺序迁移的配置面板
 - `legacy-ahk/`：旧 AHK 源码归档
 
 ## 远程仓库

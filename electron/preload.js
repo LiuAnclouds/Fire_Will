@@ -2,6 +2,9 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("fireWill", {
   getState: () => ipcRenderer.invoke("project:get-state"),
+  saveLayout: (payload) => ipcRenderer.invoke("project:save-layout", payload),
+  saveProfileAs: (profileName) => ipcRenderer.invoke("project:save-profile-as", profileName),
+  loadProfile: (profileName) => ipcRenderer.invoke("project:load-profile", profileName),
   saveBindings: (payload) => ipcRenderer.invoke("project:save-bindings", payload),
   getAssets: () => ipcRenderer.invoke("project:get-assets"),
   launchBackend: () => ipcRenderer.invoke("backend:launch"),

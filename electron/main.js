@@ -14,6 +14,17 @@ const farmNames = [
   "尾兽处追捕逃忍",
 ];
 
+const npcNames = [
+  "妙木山大蛤蟆",
+  "妙木山挑战自我NPC",
+  "家里挑战自我NPC",
+  "家里追捕逃忍NPC",
+  "尾兽处追捕逃忍NPC",
+];
+
+const releaseTypeOptions = ["无", "技能按键", "装备按键", "技能槽位", "装备槽位"];
+const preTypeOptions = ["无", "按键", "公屏"];
+
 function isPackaged() {
   return app.isPackaged;
 }
@@ -105,12 +116,61 @@ function readState(toast = "") {
         .sort((a, b) => a.localeCompare(b, "zh-CN"))
     : [];
 
+  const npcs = npcNames.map((name) => ({
+    name,
+    x: iniGet(ini, "NPC." + name, "x"),
+    y: iniGet(ini, "NPC." + name, "y"),
+  }));
+  const flows = Array.from({ length: 8 }, (_, index) => {
+    const slot = index + 1;
+    const section = "Flow." + slot;
+    const generalDelay = (key, fallback) => intValue(iniGet(ini, "General", key), fallback);
+    return {
+      slot,
+      name: iniGet(ini, section, "name", "自定义流程" + slot),
+      enabled: iniGet(ini, section, "enabled", "0") === "1",
+      hotkey: iniGet(ini, section, "hotkey"),
+      delays: {
+        key: intValue(iniGet(ini, section, "keyDelay"), generalDelay("keyDelayMs", 40)),
+        skillKey: intValue(iniGet(ini, section, "skillKeyDelay"), generalDelay("skillKeyDelayMs", 100)),
+        teleport: intValue(iniGet(ini, section, "teleportKeyDelay"), generalDelay("teleportKeyDelayMs", 200)),
+        npcClick: intValue(iniGet(ini, section, "npcClickDelay"), generalDelay("npcClickDelayMs", 100)),
+        mouse: intValue(iniGet(ini, section, "mouseMoveDelay"), generalDelay("mouseMoveDelayMs", 30)),
+        releaseMouse: intValue(iniGet(ini, section, "releaseMouseMoveDelay"), generalDelay("releaseMouseMoveDelayMs", 80)),
+        chat: intValue(iniGet(ini, section, "chatDelay"), generalDelay("chatDelayMs", 500)),
+        heroSelect: intValue(
+          iniGet(ini, section, "heroSelectDelay", iniGet(ini, section, "f1Delay")),
+          generalDelay("heroSelectDelayMs", 80),
+        ),
+      },
+      groups: Array.from({ length: 8 }, (_, groupIndex) => {
+        const group = groupIndex + 1;
+        const groupSection = section + ".Group." + group;
+        const wait = intValue(iniGet(ini, groupSection, "wait"), 0);
+        const duration = intValue(iniGet(ini, groupSection, "duration"), 0);
+        return {
+          group,
+          enabled: iniGet(ini, groupSection, "enabled", "0") === "1",
+          preType: iniGet(ini, groupSection, "preType", "无"),
+          preValue: iniGet(ini, groupSection, "preValue"),
+          farm: iniGet(ini, groupSection, "farm", "无"),
+          wait,
+          duration,
+          used: Math.max(0, duration - wait),
+        };
+      }),
+    };
+  });
+
   return {
     toast,
     profileName: iniGet(ini, "General", "currentProfileName", "默认/未读取"),
     stopHotkey: iniGet(ini, "General", "stopHotkey", "Z"),
     gameWindowMatcher: iniGet(ini, "General", "gameWindowMatcher"),
+    skipGameCheck: iniGet(ini, "General", "skipGameCheck", "0") === "1",
     profiles,
+    options: { farmNames, npcNames, releaseTypeOptions, preTypeOptions },
+    npcs,
     farms: farmNames.map((name) => ({
       name,
       actionKey: iniGet(ini, "Farm." + name, "actionKey"),
@@ -133,35 +193,113 @@ function readState(toast = "") {
         return { slot, key: iniGet(ini, "KeyMap", "item" + slot) };
       }),
     },
-    flows: Array.from({ length: 8 }, (_, index) => {
-      const slot = index + 1;
-      return {
-        slot,
-        name: iniGet(ini, "Flow." + slot, "name", "自定义流程" + slot),
-        enabled: iniGet(ini, "Flow." + slot, "enabled", "0") === "1",
-        hotkey: iniGet(ini, "Flow." + slot, "hotkey"),
-        groups: Array.from({ length: 8 }, (_, groupIndex) => {
-          const group = groupIndex + 1;
-          const section = "Flow." + slot + ".Group." + group;
-          return {
-            group,
-            enabled: iniGet(ini, section, "enabled", "0") === "1",
-            preType: iniGet(ini, section, "preType", "无"),
-            preValue: iniGet(ini, section, "preValue"),
-            farm: iniGet(ini, section, "farm", "无"),
-            wait: intValue(iniGet(ini, section, "wait"), 0),
-            duration: intValue(iniGet(ini, section, "duration"), 0),
-          };
-        }),
-      };
-    }),
+    flows,
     checks: {
-      missingNpc: 0,
+      missingNpc: npcs.filter((npc) => npc.x === "" || npc.y === "").length,
       mappedSkills: Array.from({ length: 12 }, (_, index) => iniGet(ini, "KeyMap", "skill" + (index + 1))).filter(Boolean).length,
       mappedItems: Array.from({ length: 6 }, (_, index) => iniGet(ini, "KeyMap", "item" + (index + 1))).filter(Boolean).length,
       enabledFlows: Array.from({ length: 8 }, (_, index) => iniGet(ini, "Flow." + (index + 1), "enabled", "0") === "1").filter(Boolean).length,
     },
   };
+}
+
+function saveLayout(payload) {
+  const updates = {
+    General: {
+      stopHotkey: String(payload.stopHotkey || "Z"),
+      skipGameCheck: payload.skipGameCheck ? "1" : "0",
+    },
+  };
+
+  for (const farm of payload.farms || []) {
+    if (!farmNames.includes(farm.name)) continue;
+    updates["Farm." + farm.name] = {
+      actionKey: String(farm.actionKey || ""),
+      releaseType: releaseTypeOptions.includes(farm.releaseType) ? farm.releaseType : "无",
+      releaseKey: String(farm.releaseKey || ""),
+      targetX: String(farm.targetX || ""),
+      targetY: String(farm.targetY || ""),
+    };
+  }
+
+  for (const npc of payload.npcs || []) {
+    if (!npcNames.includes(npc.name)) continue;
+    updates["NPC." + npc.name] = {
+      x: String(npc.x || ""),
+      y: String(npc.y || ""),
+    };
+  }
+
+  for (const flow of payload.flows || []) {
+    const slot = Number(flow.slot);
+    if (slot < 1 || slot > 8) continue;
+    const section = "Flow." + slot;
+    updates[section] = {
+      name: String(flow.name || "自定义流程" + slot),
+      enabled: flow.enabled ? "1" : "0",
+      hotkey: String(flow.hotkey || ""),
+      keyDelay: String(Math.max(0, Number(flow.delays?.key) || 0)),
+      skillKeyDelay: String(Math.max(0, Number(flow.delays?.skillKey) || 0)),
+      teleportKeyDelay: String(Math.max(0, Number(flow.delays?.teleport) || 0)),
+      npcClickDelay: String(Math.max(0, Number(flow.delays?.npcClick) || 0)),
+      mouseMoveDelay: String(Math.max(0, Number(flow.delays?.mouse) || 0)),
+      releaseMouseMoveDelay: String(Math.max(0, Number(flow.delays?.releaseMouse) || 0)),
+      chatDelay: String(Math.max(0, Number(flow.delays?.chat) || 0)),
+      heroSelectDelay: String(Math.max(0, Number(flow.delays?.heroSelect) || 0)),
+    };
+    for (const group of flow.groups || []) {
+      const groupIndex = Number(group.group);
+      if (groupIndex < 1 || groupIndex > 8) continue;
+      updates[section + ".Group." + groupIndex] = {
+        enabled: group.enabled ? "1" : "0",
+        preType: preTypeOptions.includes(group.preType) ? group.preType : "无",
+        preValue: String(group.preValue || ""),
+        farm: farmNames.includes(group.farm) ? group.farm : "无",
+        wait: String(Math.max(0, Number(group.wait) || 0)),
+        duration: String(Math.max(0, Number(group.duration) || 0)),
+      };
+    }
+  }
+
+  updateIni(configPath(), updates);
+  return readState("已按旧版 AHK 字段保存当前面板配置。");
+}
+
+function safeProfileName(value) {
+  return String(value || "")
+    .replace(/[\\/:*?"<>|]/g, "_")
+    .trim()
+    .slice(0, 80);
+}
+
+function saveProfileAs(profileName) {
+  const safeName = safeProfileName(profileName);
+  if (!safeName) return readState("英雄名称不能为空。");
+  const profileDir = path.join(runtimeRoot(), "profiles");
+  fs.mkdirSync(profileDir, { recursive: true });
+  const target = path.join(profileDir, safeName + ".ini");
+  updateIni(configPath(), {
+    General: {
+      currentProfileName: safeName,
+      currentProfilePath: target,
+    },
+  });
+  fs.copyFileSync(configPath(), target);
+  return readState("已保存新英雄配置：" + safeName);
+}
+
+function loadProfile(profileName) {
+  const safeName = safeProfileName(profileName);
+  const target = path.join(runtimeRoot(), "profiles", safeName + ".ini");
+  if (!safeName || !fs.existsSync(target)) return readState("找不到英雄配置：" + profileName);
+  fs.copyFileSync(target, configPath());
+  updateIni(configPath(), {
+    General: {
+      currentProfileName: safeName,
+      currentProfilePath: target,
+    },
+  });
+  return readState("已读取英雄配置：" + safeName);
 }
 
 function updateIni(filePath, updates) {
@@ -285,6 +423,9 @@ function updateZoom(webContents, action) {
 app.whenReady().then(() => {
   ensureRuntimeFiles();
   ipcMain.handle("project:get-state", () => readState());
+  ipcMain.handle("project:save-layout", (_, payload) => saveLayout(payload));
+  ipcMain.handle("project:save-profile-as", (_, profileName) => saveProfileAs(profileName));
+  ipcMain.handle("project:load-profile", (_, profileName) => loadProfile(profileName));
   ipcMain.handle("project:save-bindings", (_, payload) => saveBindings(payload));
   ipcMain.handle("project:get-assets", () => ({
     backgroundVideo: pathToFileURL(path.join(uiRoot(), "assets", "background.mp4")).href,

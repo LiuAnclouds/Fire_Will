@@ -3,106 +3,135 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Fire Will - 羁绊流程编排器</title>
+    <title>羁绊I丶无限月读宏</title>
     <link rel="stylesheet" href="./styles/app.css" />
   </head>
   <body>
     <video id="background-video" class="backdrop-video" autoplay muted loop playsinline></video>
     <div class="shade"></div>
 
-    <main class="shell">
-      <header class="topbar">
-        <section class="brand">
-          <img id="brand-icon" src="./assets/icon.png" alt="" />
-          <div>
-            <h1>Fire Will</h1>
-            <p>羁绊高难流程编排器</p>
-          </div>
-        </section>
-        <section class="runtime">
-          <span id="profile-pill">英雄：读取中</span>
-          <span id="window-pill">窗口：未绑定</span>
-          <span id="stop-pill">停止键：Z</span>
-          <label class="backdrop-control" title="调整动态背景亮度">
-            <span>背景</span>
-            <input id="background-opacity" type="range" min="0.15" max="1" step="0.05" value="0.58" />
-          </label>
-          <div class="zoom-control" aria-label="界面缩放">
-            <button id="zoom-out" type="button" title="缩小界面" aria-label="缩小界面">−</button>
-            <output id="zoom-value">100%</output>
-            <button id="zoom-in" type="button" title="放大界面" aria-label="放大界面">+</button>
-          </div>
-          <button id="legacy-btn" type="button">打开旧版配置器</button>
-        </section>
+    <main class="ahk-shell">
+      <header class="legacy-intro">
+        <p>原则：NPC菜单、技能、装备都用按键；坐标只用于 NPC 点击点、技能/装备鼠标点。F1 仅在释放类型不为无时用于选英雄。</p>
+        <strong>当前配置英雄：<span id="current-profile">读取中</span></strong>
       </header>
 
-      <section class="workspace">
-        <aside class="sidebar panel">
-          <div class="panel-title">
-            <span>英雄配置</span>
-            <small id="profile-count">0 个</small>
+      <fieldset class="legacy-panel farm-panel">
+        <legend>一、刷本设置（7个固定项全部独立保存）</legend>
+        <div class="panel-toolbar">
+          <div class="table-head farm-head">
+            <span>刷本项</span><span>动作键/采</span><span>释放类型</span><span>键/槽位</span><span>技能鼠标点 X/Y</span><span></span>
           </div>
-          <div id="profile-list" class="profile-list"></div>
-
-          <div class="panel-title spaced">
-            <span>流程模板</span>
-            <small id="flow-count">0 启用</small>
+          <div class="toolbar-actions">
+            <button id="save-profile" type="button">保存当前配置</button>
+            <button id="save-profile-as" type="button">保存为新英雄</button>
+            <button id="load-profile" type="button">读取配置</button>
           </div>
-          <div id="flow-list" class="flow-list"></div>
-        </aside>
-
-        <section class="center panel">
-          <div class="flow-head">
-            <div>
-              <span class="eyebrow">当前流程</span>
-              <h2 id="flow-title">等待配置</h2>
-            </div>
-            <div class="flow-actions">
-              <button id="save-btn" type="button">保存用户按键</button>
-            </div>
+        </div>
+        <div class="farm-layout">
+          <div class="legacy-table farm-table">
+            <div id="farm-rows"></div>
           </div>
+          <aside class="farm-side">
+            <button id="clear-farm" type="button">清空刷本设置</button>
+            <button id="open-keymap-top" type="button">平台按键映射表</button>
+            <label>F6 采鼠标点目标</label>
+            <select id="farm-target"></select>
+          </aside>
+        </div>
+      </fieldset>
 
-          <div class="flow-meta">
-            <span id="flow-hotkey">触发键：未设置</span>
-            <span id="flow-enabled">未启用</span>
+      <fieldset class="legacy-panel flow-panel">
+        <legend>二、执行流程（最多8个自定义流程，每个流程最多8组，按ID顺序执行）</legend>
+        <div class="flow-settings">
+          <label>流程<select id="flow-select"></select></label>
+          <label>名称<input id="flow-name" type="text" /></label>
+          <label class="check-label"><input id="flow-enabled" type="checkbox" />启用</label>
+          <label>触发键<div class="capture-field"><input id="flow-hotkey" type="text" /><button type="button" data-legacy="流程触发键">采</button></div></label>
+          <label>停止热键（自填）<div class="capture-field"><input id="stop-hotkey" type="text" /><button type="button" data-legacy="停止热键">采</button></div></label>
+          <span class="hint">默认 Z，仅一个生效</span>
+          <button id="clear-flow" type="button">清空当前流程</button>
+          <button id="stop-flow" type="button">停止</button>
+        </div>
+
+        <fieldset class="timing-panel">
+          <legend>耗时设置（每次 +/- 10ms）</legend>
+          <div id="delay-grid" class="delay-grid"></div>
+          <p class="timing-note">释放类型不为无时才按 F1 选英雄。技能/装备释放走技能键耗时，只按键，不点击目标点。</p>
+        </fieldset>
+
+        <div class="flow-table-layout">
+          <div class="legacy-table flow-table">
+            <div class="table-head flow-head-row">
+              <span>ID</span><span>启用</span><span>组前类型</span><span>组前按键/公屏</span><span>刷本选择</span><span>动作占用</span><span>组合时长 ms</span><span>等待 ms</span><span>10ms</span>
+            </div>
+            <div id="group-rows"></div>
           </div>
+          <aside class="flow-side">
+            <p>执行顺序固定为 ID 1 到 ID 8。公屏会快速执行 Enter → 命令 → Enter。</p>
+            <fieldset>
+              <legend>使用说明</legend>
+              <p>1. 动作占用由程序按当前 ID 自动计算。</p>
+              <p>2. 等待 ms 可手动修改。</p>
+              <p>3. 组合时长 = 动作占用 + 等待。</p>
+              <p>4. F5/F6 采鼠标点，F7/F8 采 NPC 点。</p>
+              <p>5. 自动施法需要开启平台内快捷施法。</p>
+            </fieldset>
+          </aside>
+        </div>
+      </fieldset>
 
-          <div id="flow-steps" class="steps"></div>
-        </section>
+      <fieldset class="legacy-panel npc-panel">
+        <legend>三、NPC / 坐标 / 平台按键标定</legend>
+        <div class="npc-settings">
+          <label>NPC<select id="npc-select"></select></label>
+          <span class="hint">NPC 点击不按 F1</span>
+          <label>点击点 X/Y <span class="dual-input"><input id="npc-x" type="text" /><input id="npc-y" type="text" /></span></label>
+          <button type="button" data-legacy="记录 NPC 点">记录 NPC 点</button>
+          <label class="check-label"><input id="skip-game-check" type="checkbox" />跳过窗口检测</label>
+          <button id="clear-npc" type="button">清空本区</button>
+        </div>
+        <div class="npc-actions">
+          <p>NPC 不再使用矩形，执行时直接点击这个点。F7/F8 单按采样；双按 F7 上一个 NPC，双按 F8 下一个 NPC。</p>
+          <button id="save-npc" type="button">保存 NPC</button>
+          <button id="open-keymap-npc" type="button">平台按键映射表</button>
+          <button type="button" data-legacy="绑定游戏窗口">绑定游戏窗口</button>
+          <button type="button" data-legacy="复制当前窗口">复制当前窗口</button>
+        </div>
+        <p class="wide-note">建议：NPC 点位标到菜单可点位置中心。F5/F6 单按采技能鼠标点，双按 F5/F6 切换刷本项；自动施法需要开启平台内快捷施法，程序只在自动释放前按 F1 选英雄。</p>
+      </fieldset>
 
-        <aside class="right-stack">
-          <section class="panel health">
-            <div class="panel-title">
-              <span>配置检查</span>
-              <small id="health-label">读取中</small>
-            </div>
-            <div class="health-grid">
-              <div><b id="npc-check">0</b><span>缺失 NPC</span></div>
-              <div><b id="skill-check">0/12</b><span>技能映射</span></div>
-              <div><b id="item-check">0/6</b><span>装备映射</span></div>
-              <div><b id="enabled-check">0</b><span>启用流程</span></div>
-            </div>
-          </section>
+      <fieldset class="legacy-panel credits-panel">
+        <legend>感谢支持</legend>
+        <p>1. 此软件由 WosCat@月吟开发，感谢支持。有问题请联系作者微信 xu3071744684</p>
+        <p>2. 大力感谢航哥@远航gh的支持，感谢航哥的测试</p>
+        <p>3. 感谢橘子哥@橘子怪的支持</p>
+        <p>4. 感谢比奇堡@兄弟们的支持</p>
+      </fieldset>
 
-          <section class="panel bindings">
-            <div class="panel-title">
-              <span>用户快捷键</span>
-              <small>技能 / 装备 / NPC菜单</small>
-            </div>
-            <div class="binding-scroll">
-              <h3>关键 NPC 菜单键</h3>
-              <div id="farm-bindings" class="binding-list"></div>
-              <h3>技能栏快捷键与 CD</h3>
-              <div id="skill-bindings" class="binding-grid"></div>
-              <h3>装备栏快捷键</h3>
-              <div id="item-bindings" class="binding-grid compact"></div>
-            </div>
-          </section>
-        </aside>
-      </section>
-
-      <div id="status-bar" class="status-bar" role="status" aria-live="polite">正在读取配置...</div>
+      <footer id="status-bar" class="status-bar">状态：已加载配置。</footer>
     </main>
+
+    <dialog id="keymap-dialog" class="keymap-dialog">
+      <form method="dialog" class="keymap-form">
+        <h2>平台按键映射表</h2>
+        <p>这里不自动读取 KK 平台映射。可手填 Tab/Space，也可点每格旁边的“采”后交给内置 AHK 采集；装备格不采坐标。</p>
+        <div class="keymap-columns">
+          <fieldset>
+            <legend>技能栏 4列 x 3行</legend>
+            <div id="skill-map-grid" class="key-map-grid"></div>
+          </fieldset>
+          <fieldset>
+            <legend>装备栏 2列 x 3行</legend>
+            <div id="item-map-grid" class="key-map-grid"></div>
+          </fieldset>
+        </div>
+        <div class="dialog-actions">
+          <button id="save-keymap" type="button">保存映射表</button>
+          <button value="cancel" type="submit">关闭</button>
+        </div>
+      </form>
+    </dialog>
 
     <script src="./scripts/app.js"></script>
   </body>
