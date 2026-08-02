@@ -1,0 +1,27 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "app", "app", "{AC0048F8-DE95-414A-B9F9-29A51A1E6D0F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FireWill.App", "app\FireWill.App\FireWill.App.csproj", "{734B5CD3-E509-4F64-9489-D161D18B9B50}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{734B5CD3-E509-4F64-9489-D161D18B9B50}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{734B5CD3-E509-4F64-9489-D161D18B9B50}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{734B5CD3-E509-4F64-9489-D161D18B9B50}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{734B5CD3-E509-4F64-9489-D161D18B9B50}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{734B5CD3-E509-4F64-9489-D161D18B9B50} = {AC0048F8-DE95-414A-B9F9-29A51A1E6D0F}
+	EndGlobalSection
+EndGlobal

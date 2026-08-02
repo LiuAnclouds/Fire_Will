@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fire Will - 羁绊流程编排器</title>
+    <link rel="stylesheet" href="./styles/app.css" />
+  </head>
+  <body>
+    <video class="backdrop-video" autoplay muted loop playsinline>
+      <source src="./assets/background.mp4" type="video/mp4" />
+    </video>
+    <div class="shade"></div>
+
+    <main class="shell">
+      <header class="topbar">
+        <section class="brand">
+          <img src="./assets/icon.png" alt="" />
+          <div>
+            <h1>Fire Will</h1>
+            <p>羁绊高难流程编排器</p>
+          </div>
+        </section>
+        <section class="runtime">
+          <span id="profile-pill">英雄：读取中</span>
+          <span id="window-pill">窗口：未绑定</span>
+          <span id="stop-pill">停止键：Z</span>
+          <button id="legacy-btn" type="button">打开旧版配置器</button>
+        </section>
+      </header>
+
+      <section class="workspace">
+        <aside class="sidebar panel">
+          <div class="panel-title">
+            <span>英雄配置</span>
+            <small id="profile-count">0 个</small>
+          </div>
+          <div id="profile-list" class="profile-list"></div>
+
+          <div class="panel-title spaced">
+            <span>流程模板</span>
+            <small id="flow-count">0 启用</small>
+          </div>
+          <div id="flow-list" class="flow-list"></div>
+        </aside>
+
+        <section class="center panel">
+          <div class="flow-head">
+            <div>
+              <span class="eyebrow">当前流程</span>
+              <h2 id="flow-title">等待配置</h2>
+            </div>
+            <div class="flow-actions">
+              <button id="save-btn" type="button">保存用户按键</button>
+            </div>
+          </div>
+
+          <div class="flow-meta">
+            <span id="flow-hotkey">触发键：未设置</span>
+            <span id="flow-enabled">未启用</span>
+          </div>
+
+          <div id="flow-steps" class="steps"></div>
+        </section>
+
+        <aside class="right-stack">
+          <section class="panel health">
+            <div class="panel-title">
+              <span>配置检查</span>
+              <small id="health-label">读取中</small>
+            </div>
+            <div class="health-grid">
+              <div><b id="npc-check">0</b><span>缺失 NPC</span></div>
+              <div><b id="skill-check">0/12</b><span>技能映射</span></div>
+              <div><b id="item-check">0/6</b><span>装备映射</span></div>
+              <div><b id="enabled-check">0</b><span>启用流程</span></div>
+            </div>
+          </section>
+
+          <section class="panel bindings">
+            <div class="panel-title">
+              <span>用户快捷键</span>
+              <small>技能 / 装备 / NPC菜单</small>
+            </div>
+            <div class="binding-scroll">
+              <h3>关键 NPC 菜单键</h3>
+              <div id="farm-bindings" class="binding-list"></div>
+              <h3>技能栏快捷键与 CD</h3>
+              <div id="skill-bindings" class="binding-grid"></div>
+              <h3>装备栏快捷键</h3>
+              <div id="item-bindings" class="binding-grid compact"></div>
+            </div>
+          </section>
+        </aside>
+      </section>
+
+      <section class="bottom-row">
+        <div class="panel cooldown-panel">
+          <div class="panel-title">
+            <span>技能 CD 计时器</span>
+            <small>第一版：手动点击开始倒计时</small>
+          </div>
+          <div id="cooldown-list" class="cooldown-list"></div>
+        </div>
+        <div id="status-bar" class="status-bar">正在读取配置...</div>
+      </section>
+    </main>
+
+    <script src="./scripts/app.js"></script>
+  </body>
+</html>
+

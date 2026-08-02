@@ -10,6 +10,13 @@ dist/
 outputs/
 build/
 release/
+bin/
+obj/
+**/bin/
+**/obj/
+.tmp-restore-check/
+third_party/
+*.nupkg
 
 # Python cache from recognition tooling
 __pycache__/
@@ -20,4 +27,7 @@ __pycache__/
 .idea/
 Thumbs.db
 Desktop.ini
+
+# Keep original root video out of source; committed UI asset lives in ui/assets/
+/background.mp4
 
