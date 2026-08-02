@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "map": {
     "name": "羁绊1",
     "file": "B6CE1F92D5C0D2E7B4E4C9BAB12F9918.w3x",
@@ -12,175 +12,244 @@
     }
   },
   "coordinateSource": {
-    "method": "runtime-unit-structure",
+    "method": "runtime-unit-pool",
     "unitRawcodeOffset": "0x30",
     "worldXOffset": "0x284",
     "worldYOffset": "0x288",
     "verifiedWithRunningMap": true
   },
-  "npcs": [
-    {
-      "id": "home-challenge",
-      "name": "清酒沾衣",
-      "rawcode": "n00A",
-      "world": {
-        "x": 3968,
-        "y": 3520
-      },
-      "commandCardItems": [
-        "I03Y",
-        "I0BD",
-        "I0AV",
-        "I0C5",
-        "I0C6",
-        "I08P",
-        "I08Q",
-        "I06L"
-      ],
-      "tasks": [
-        {
-          "name": "挑战自我 x5",
-          "rawcode": "I08P",
-          "hotkey": "Z"
-        },
-        {
-          "name": "挑战自我 x10",
-          "rawcode": "I08Q",
-          "hotkey": "X"
-        }
-      ]
+  "coverage": {
+    "selectionRule": [
+      "Sellitems",
+      "Sellunits",
+      "Trains"
+    ],
+    "npcTypeCount": 33,
+    "npcInstanceCount": 40
+  },
+  "npcTypes": {
+    "hcas": {
+      "name": "阵营基地",
+      "sellItems": ["I01U", "I0KC", "I0IN", "I0BN", "gold", "lmbr", "I097", "I098"],
+      "sellUnits": ["h04Z", "hpea"]
     },
-    {
-      "id": "myoboku-challenge",
-      "name": "卡卡灭灵",
-      "rawcode": "n011",
-      "world": {
-        "x": -4416,
-        "y": 1792
-      },
-      "commandCardItems": [
-        "I093",
-        "I094",
-        "I0AD",
-        "I0H1"
-      ],
-      "tasks": [
-        {
-          "name": "挑战自我 x5秒木",
-          "rawcode": "I093",
-          "hotkey": "A"
-        },
-        {
-          "name": "挑战自我 x20苗木",
-          "rawcode": "I094",
-          "hotkey": "S"
-        }
-      ]
+    "hmpr": {
+      "name": "自来也",
+      "sellItems": ["I0AO", "I0CT", "I0AK"]
     },
-    {
-      "id": "large-water-challenge",
+    "hsor": {
       "name": "下完这场雨！",
-      "rawcode": "hsor",
-      "world": {
-        "x": -640,
-        "y": -3776
-      },
-      "commandCardItems": [
-        "I05Q",
-        "I03T",
-        "tkno",
-        "I0AB",
-        "I0H4",
-        "I0BF",
-        "I0BG",
-        "I097",
-        "I098"
-      ],
-      "tasks": [
-        {
-          "name": "挑战自我 x5大水",
-          "rawcode": "I0BF",
-          "hotkey": "Z"
-        },
-        {
-          "name": "挑战自我 x10大水",
-          "rawcode": "I0BG",
-          "hotkey": "X"
-        }
-      ]
+      "sellItems": ["I05Q", "I03T", "tkno", "I0AB", "I0H4", "I0BF", "I0BG", "I097", "I098"]
     },
-    {
-      "id": "myoboku-sage",
+    "n000": {
+      "name": "吉尔伽美什",
+      "sellItems": ["bspd", "rhth", "pmna", "wswd", "ankh", "I01O", "I03C", "I0AH", "I0AD"]
+    },
+    "n001": {
+      "name": "点点怪",
+      "sellItems": ["I001", "I005", "I05T", "I03W", "whwd", "I08R", "gold", "lmbr", "I097", "I098"]
+    },
+    "n004": {
+      "name": "kevin 桥君的初级装备铺",
+      "sellItems": ["I00I", "I00J", "I00P", "I00R", "I01B", "I01F", "I00V", "I01G"]
+    },
+    "n005": {
+      "name": "装备升级",
+      "sellItems": ["I01H", "I01I", "I01J", "I01K", "I01L", "I01N", "I0A8", "I0CD"]
+    },
+    "n00A": {
+      "name": "清酒沾衣",
+      "sellItems": ["I03Y", "I0BD", "I0AV", "I0C5", "I0C6", "I08P", "I08Q", "I06L"]
+    },
+    "n00B": {
+      "name": "诗静依丶的书店",
+      "sellItems": ["I02U", "I02V", "I02W", "I09F", "texp", "I08C", "I0G6", "I0JT"]
+    },
+    "n00R": {
+      "name": "地图作者：冬冬",
+      "sellItems": ["I03J", "I0D0", "I0BB", "I0HO", "I0HN", "I0H3", "I0H2", "I0IF", "I0IW"]
+    },
+    "n00S": {
+      "name": "U9 - 丶唯つ恋",
+      "sellItems": ["I0BC"]
+    },
+    "n00T": {
+      "name": "U9 - 星儿",
+      "sellItems": ["I0O3"]
+    },
+    "n00U": {
+      "name": "骚不透",
+      "sellItems": ["I06M", "I06N", "I06O", "I09Z", "I0BM", "I0BL", "I03V", "I0BK", "I0DW", "I0F8"]
+    },
+    "n00X": {
+      "name": "U9 - 兰兰、",
+      "sellItems": ["I03D", "I08F"]
+    },
+    "n00Z": {
+      "name": "轻语",
+      "sellItems": ["I0BA"]
+    },
+    "n010": {
+      "name": "志麻仙人",
+      "sellItems": ["I03G"]
+    },
+    "n011": {
+      "name": "卡卡灭灵",
+      "sellItems": ["I093", "I094", "I0AD", "I0H1"]
+    },
+    "n012": {
       "name": "大蛤蟆仙人",
-      "rawcode": "n012",
-      "world": {
-        "x": -5056,
-        "y": 2368
-      },
-      "commandCardItems": [
-        "I03F",
-        "I086",
-        "I0BT",
-        "I03I",
-        "I0BS",
-        "I0AT",
-        "I07Q",
-        "I03H"
-      ],
-      "tasks": []
+      "sellItems": ["I03F", "I086", "I0BT", "I03I", "I0BS", "I0AT", "I07Q", "I03H"]
     },
-    {
-      "id": "fugitive-hunt-west",
+    "n01E": {
       "name": "花、无果",
-      "rawcode": "n01E",
-      "world": {
-        "x": -2432,
-        "y": -3648
-      },
-      "commandCardItems": [
-        "I08H",
-        "I0E4",
-        "I0E2",
-        "I0CY",
-        "I0CZ",
-        "gold",
-        "lmbr",
-        "I097",
-        "I098"
-      ],
-      "tasks": [
-        {
-          "name": "任务 - 追捕逃忍",
-          "rawcode": "I08H",
-          "hotkey": "Q"
-        }
+      "sellItems": ["I08H", "I0E4", "I0E2", "I0CY", "I0CZ", "gold", "lmbr", "I097", "I098"]
+    },
+    "n02K": {
+      "name": "六道仙人",
+      "sellItems": ["I0AU", "I0BH", "I0BP", "I0BE", "I0AR", "I0AS", "I0ES", "I0DZ", "I0DP", "I0DF"]
+    },
+    "n030": {
+      "name": "达鲁伊",
+      "sellItems": ["I0AP", "I0AL", "I0AQ"]
+    },
+    "n031": {
+      "name": "暗部情报员",
+      "sellItems": ["I0AM", "I0AN"]
+    },
+    "n034": {
+      "name": "宇智波鼬",
+      "sellItems": ["I096"]
+    },
+    "n03J": {
+      "name": "小卡了咪",
+      "sellItems": ["I0C1", "I0C2"]
+    },
+    "n03K": {
+      "name": "旗木卡卡西",
+      "sellItems": ["I0C3", "I0C4"]
+    },
+    "n03L": {
+      "name": "团藏",
+      "sellItems": ["I0C7", "I0DU", "I0EA", "I0CR", "I0CS", "I0CE", "I0CF"]
+    },
+    "n03X": {
+      "name": "流浪忍界之人",
+      "sellItems": ["I0DK", "I0DM", "I0D7", "I0DD", "I0D9", "I0DB", "I0D1", "I0D6"]
+    },
+    "n04Y": {
+      "name": "渊清清",
+      "sellItems": ["I0IG", "I0IH", "I0II", "I0IJ", "I0IK", "I0IL", "I0IR", "I0NM", "I0J0", "I0IT"]
+    },
+    "n055": {
+      "name": "功能道具(商城道具)",
+      "sellItems": ["I0K2", "I0K3", "I0K4", "I0JC", "I0L0", "I0L1", "I0K5"]
+    },
+    "n05A": {
+      "name": "功能道具(商城道具)",
+      "sellItems": ["I0K6", "I0K7", "I0K8", "I0K9", "I0KA", "I0KD", "I0KZ", "I0KB"]
+    },
+    "n05L": {
+      "name": "挑战(存档)",
+      "sellItems": ["I0KF"]
+    },
+    "n05M": {
+      "name": "测试NPC",
+      "sellItems": ["I0KL", "I0KM", "I0KN", "I0KO", "I0NK", "I0NL", "I0KP", "I0KQ", "I0KR"]
+    },
+    "n05P": {
+      "name": "破壁者",
+      "sellItems": ["I0N4", "I0N5", "I0NN", "I0O0", "I0NC"]
+    }
+  },
+  "npcInstances": [
+    {"id": "hcas-01", "name": "阵营基地", "rawcode": "hcas", "world": {"x": 3136, "y": 2944}},
+    {"id": "hmpr-01", "name": "自来也", "rawcode": "hmpr", "world": {"x": 3264, "y": -3264}},
+    {"id": "hsor-01", "name": "下完这场雨！", "rawcode": "hsor", "world": {"x": -640, "y": -3776}},
+    {"id": "n000-01", "name": "吉尔伽美什", "rawcode": "n000", "world": {"x": 3520, "y": 4096}},
+    {"id": "n001-01", "name": "点点怪", "rawcode": "n001", "world": {"x": 3520, "y": 3712}},
+    {"id": "n004-01", "name": "kevin 桥君的初级装备铺", "rawcode": "n004", "world": {"x": 4416, "y": 3520}},
+    {"id": "n005-01", "name": "装备升级", "rawcode": "n005", "world": {"x": 4800, "y": 3520}},
+    {"id": "n00A-01", "name": "清酒沾衣", "rawcode": "n00A", "world": {"x": 3968, "y": 3520}},
+    {"id": "n00B-01", "name": "诗静依丶的书店", "rawcode": "n00B", "world": {"x": 3520, "y": 4864}},
+    {"id": "n00R-01", "name": "地图作者：冬冬", "rawcode": "n00R", "world": {"x": 0, "y": -5312}},
+    {"id": "n00S-01", "name": "U9 - 丶唯つ恋", "rawcode": "n00S", "world": {"x": 1216, "y": -4416}},
+    {"id": "n00T-01", "name": "U9 - 星儿", "rawcode": "n00T", "world": {"x": 704, "y": -4416}},
+    {"id": "n00U-01", "name": "骚不透", "rawcode": "n00U", "world": {"x": 1280, "y": -4736}},
+    {"id": "n00X-01", "name": "U9 - 兰兰、", "rawcode": "n00X", "world": {"x": -64, "y": -5056}},
+    {"id": "n00Z-01", "name": "轻语", "rawcode": "n00Z", "world": {"x": 960, "y": -4416}},
+    {"id": "n010-01", "name": "志麻仙人", "rawcode": "n010", "world": {"x": -4096, "y": 3648}},
+    {"id": "n011-01", "name": "卡卡灭灵", "rawcode": "n011", "world": {"x": -4416, "y": 1792}},
+    {"id": "n012-01", "name": "大蛤蟆仙人", "rawcode": "n012", "world": {"x": -5056, "y": 2368}},
+    {"id": "n01E-01", "name": "花、无果", "rawcode": "n01E", "world": {"x": -2432, "y": -3648}},
+    {"id": "n01E-02", "name": "花、无果", "rawcode": "n01E", "world": {"x": 3520, "y": 4480}},
+    {"id": "n02K-01", "name": "六道仙人", "rawcode": "n02K", "world": {"x": -3136, "y": 4864}},
+    {"id": "n030-01", "name": "达鲁伊", "rawcode": "n030", "world": {"x": -3136, "y": -2432}},
+    {"id": "n031-01", "name": "暗部情报员", "rawcode": "n031", "world": {"x": -2304, "y": -3072}},
+    {"id": "n034-01", "name": "宇智波鼬", "rawcode": "n034", "world": {"x": -3008, "y": 1024}},
+    {"id": "n03J-01", "name": "小卡了咪", "rawcode": "n03J", "world": {"x": -3328, "y": 3584}},
+    {"id": "n03J-02", "name": "小卡了咪", "rawcode": "n03J", "world": {"x": 448, "y": -5312}},
+    {"id": "n03J-03", "name": "小卡了咪", "rawcode": "n03J", "world": {"x": 2752, "y": -3392}},
+    {"id": "n03K-01", "name": "旗木卡卡西", "rawcode": "n03K", "world": {"x": -8064, "y": -6144}},
+    {"id": "n03K-02", "name": "旗木卡卡西", "rawcode": "n03K", "world": {"x": -3008, "y": 3072}},
+    {"id": "n03K-03", "name": "旗木卡卡西", "rawcode": "n03K", "world": {"x": 2752, "y": 4864}},
+    {"id": "n03K-04", "name": "旗木卡卡西", "rawcode": "n03K", "world": {"x": 3200, "y": -2944}},
+    {"id": "n03K-05", "name": "旗木卡卡西", "rawcode": "n03K", "world": {"x": 4160, "y": -1344}},
+    {"id": "n03L-01", "name": "团藏", "rawcode": "n03L", "world": {"x": 2048, "y": -2240}},
+    {"id": "n03X-01", "name": "流浪忍界之人", "rawcode": "n03X", "world": {"x": 2240, "y": 3264}},
+    {"id": "n04Y-01", "name": "渊清清", "rawcode": "n04Y", "world": {"x": -8704, "y": -5312}},
+    {"id": "n055-01", "name": "功能道具(商城道具)", "rawcode": "n055", "world": {"x": 2496, "y": 3648}},
+    {"id": "n05A-01", "name": "功能道具(商城道具)", "rawcode": "n05A", "world": {"x": 2496, "y": 3648}},
+    {"id": "n05L-01", "name": "挑战(存档)", "rawcode": "n05L", "world": {"x": 1664, "y": 2304}},
+    {"id": "n05M-01", "name": "测试NPC", "rawcode": "n05M", "world": {"x": 1984, "y": 3136}},
+    {"id": "n05P-01", "name": "破壁者", "rawcode": "n05P", "world": {"x": -3840, "y": 1984}}
+  ],
+  "knownTaskBindings": [
+    {
+      "npcRawcode": "n00A",
+      "commands": [
+        {"name": "挑战自我 x5", "rawcode": "I08P", "hotkey": "Z"},
+        {"name": "挑战自我 x10", "rawcode": "I08Q", "hotkey": "X"}
       ]
     },
     {
-      "id": "fugitive-hunt-home",
-      "name": "花、无果",
-      "rawcode": "n01E",
-      "world": {
-        "x": 3520,
-        "y": 4480
-      },
-      "commandCardItems": [
-        "I08H",
-        "I0E4",
-        "I0E2",
-        "I0CY",
-        "I0CZ",
-        "gold",
-        "lmbr",
-        "I097",
-        "I098"
-      ],
-      "tasks": [
-        {
-          "name": "任务 - 追捕逃忍",
-          "rawcode": "I08H",
-          "hotkey": "Q"
-        }
+      "npcRawcode": "n011",
+      "commands": [
+        {"name": "挑战自我 x5秒木", "rawcode": "I093", "hotkey": "A"},
+        {"name": "挑战自我 x20苗木", "rawcode": "I094", "hotkey": "S"}
+      ]
+    },
+    {
+      "npcRawcode": "hsor",
+      "commands": [
+        {"name": "挑战自我 x5大水", "rawcode": "I0BF", "hotkey": "Z"},
+        {"name": "挑战自我 x10大水", "rawcode": "I0BG", "hotkey": "X"}
+      ]
+    },
+    {
+      "npcRawcode": "n01E",
+      "commands": [
+        {"name": "任务 - 追捕逃忍", "rawcode": "I08H", "hotkey": "Q"}
+      ]
+    },
+    {
+      "npcRawcode": "n03J",
+      "commands": [
+        {"name": "小咔了咪 x5", "rawcode": "I0C1", "hotkey": "Z"},
+        {"name": "小咔了咪 x10", "rawcode": "I0C2", "hotkey": "X"}
+      ]
+    },
+    {
+      "npcRawcode": "n03K",
+      "commands": [
+        {"name": "酱油 x5", "rawcode": "I0C3", "hotkey": "Z"},
+        {"name": "酱油 x10", "rawcode": "I0C4", "hotkey": "X"}
+      ]
+    },
+    {
+      "npcRawcode": "n03X",
+      "commands": [
+        {"name": "挑战自我 x100", "rawcode": "I0D7", "hotkey": "A"}
       ]
     }
   ]
