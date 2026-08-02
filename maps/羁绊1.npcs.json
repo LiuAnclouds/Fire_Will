@@ -1,0 +1,187 @@
+{
+  "schemaVersion": 1,
+  "map": {
+    "name": "羁绊1",
+    "file": "B6CE1F92D5C0D2E7B4E4C9BAB12F9918.w3x",
+    "coordinateSystem": "warcraft3-world",
+    "bounds": {
+      "minX": -9472,
+      "maxX": 4864,
+      "minY": -9984,
+      "maxY": 4864
+    }
+  },
+  "coordinateSource": {
+    "method": "runtime-unit-structure",
+    "unitRawcodeOffset": "0x30",
+    "worldXOffset": "0x284",
+    "worldYOffset": "0x288",
+    "verifiedWithRunningMap": true
+  },
+  "npcs": [
+    {
+      "id": "home-challenge",
+      "name": "清酒沾衣",
+      "rawcode": "n00A",
+      "world": {
+        "x": 3968,
+        "y": 3520
+      },
+      "commandCardItems": [
+        "I03Y",
+        "I0BD",
+        "I0AV",
+        "I0C5",
+        "I0C6",
+        "I08P",
+        "I08Q",
+        "I06L"
+      ],
+      "tasks": [
+        {
+          "name": "挑战自我 x5",
+          "rawcode": "I08P",
+          "hotkey": "Z"
+        },
+        {
+          "name": "挑战自我 x10",
+          "rawcode": "I08Q",
+          "hotkey": "X"
+        }
+      ]
+    },
+    {
+      "id": "myoboku-challenge",
+      "name": "卡卡灭灵",
+      "rawcode": "n011",
+      "world": {
+        "x": -4416,
+        "y": 1792
+      },
+      "commandCardItems": [
+        "I093",
+        "I094",
+        "I0AD",
+        "I0H1"
+      ],
+      "tasks": [
+        {
+          "name": "挑战自我 x5秒木",
+          "rawcode": "I093",
+          "hotkey": "A"
+        },
+        {
+          "name": "挑战自我 x20苗木",
+          "rawcode": "I094",
+          "hotkey": "S"
+        }
+      ]
+    },
+    {
+      "id": "large-water-challenge",
+      "name": "下完这场雨！",
+      "rawcode": "hsor",
+      "world": {
+        "x": -640,
+        "y": -3776
+      },
+      "commandCardItems": [
+        "I05Q",
+        "I03T",
+        "tkno",
+        "I0AB",
+        "I0H4",
+        "I0BF",
+        "I0BG",
+        "I097",
+        "I098"
+      ],
+      "tasks": [
+        {
+          "name": "挑战自我 x5大水",
+          "rawcode": "I0BF",
+          "hotkey": "Z"
+        },
+        {
+          "name": "挑战自我 x10大水",
+          "rawcode": "I0BG",
+          "hotkey": "X"
+        }
+      ]
+    },
+    {
+      "id": "myoboku-sage",
+      "name": "大蛤蟆仙人",
+      "rawcode": "n012",
+      "world": {
+        "x": -5056,
+        "y": 2368
+      },
+      "commandCardItems": [
+        "I03F",
+        "I086",
+        "I0BT",
+        "I03I",
+        "I0BS",
+        "I0AT",
+        "I07Q",
+        "I03H"
+      ],
+      "tasks": []
+    },
+    {
+      "id": "fugitive-hunt-west",
+      "name": "花、无果",
+      "rawcode": "n01E",
+      "world": {
+        "x": -2432,
+        "y": -3648
+      },
+      "commandCardItems": [
+        "I08H",
+        "I0E4",
+        "I0E2",
+        "I0CY",
+        "I0CZ",
+        "gold",
+        "lmbr",
+        "I097",
+        "I098"
+      ],
+      "tasks": [
+        {
+          "name": "任务 - 追捕逃忍",
+          "rawcode": "I08H",
+          "hotkey": "Q"
+        }
+      ]
+    },
+    {
+      "id": "fugitive-hunt-home",
+      "name": "花、无果",
+      "rawcode": "n01E",
+      "world": {
+        "x": 3520,
+        "y": 4480
+      },
+      "commandCardItems": [
+        "I08H",
+        "I0E4",
+        "I0E2",
+        "I0CY",
+        "I0CZ",
+        "gold",
+        "lmbr",
+        "I097",
+        "I098"
+      ],
+      "tasks": [
+        {
+          "name": "任务 - 追捕逃忍",
+          "rawcode": "I08H",
+          "hotkey": "Q"
+        }
+      ]
+    }
+  ]
+}
