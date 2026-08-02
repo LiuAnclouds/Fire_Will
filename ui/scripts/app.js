@@ -6,12 +6,6 @@ const state = {
 
 const $ = (id) => document.getElementById(id);
 
-function post(type, payload = {}) {
-  if (window.chrome?.webview) {
-    window.chrome.webview.postMessage({ type, payload });
-  }
-}
-
 function setStatus(text) {
   $("status-bar").textContent = text;
 }
@@ -165,6 +159,10 @@ function tickCooldowns() {
   });
 }
 
+function updateZoomLabel(percent) {
+  $("zoom-value").textContent = `${percent}%`;
+}
+
 function escapeHtml(value = "") {
   return String(value).replace(/[&<>"']/g, (char) => ({
     "&": "&amp;",
@@ -179,19 +177,49 @@ function escapeAttr(value = "") {
   return escapeHtml(value).replace(/\n/g, " ");
 }
 
-$("save-btn").addEventListener("click", () => post("save-user-bindings", collectBindings()));
-$("legacy-btn").addEventListener("click", () => post("open-legacy-ahk"));
+$("save-btn").addEventListener("click", async () => {
+  if (!window.fireWill) return;
+  const project = await window.fireWill.saveBindings(collectBindings());
+  render(project);
+});
 
-if (window.chrome?.webview) {
-  window.chrome.webview.addEventListener("message", (event) => {
-    if (event.data?.type === "state") {
-      render(event.data.payload);
-    }
-  });
-  post("request-state");
-} else {
-  setStatus("请在 FireWill.App WebView2 壳中打开此界面。");
+$("legacy-btn").addEventListener("click", async () => {
+  if (!window.fireWill) return;
+  const project = await window.fireWill.launchBackend();
+  render(project);
+});
+
+$("zoom-out").addEventListener("click", async () => {
+  updateZoomLabel(await window.fireWill.setZoom("out"));
+});
+
+$("zoom-in").addEventListener("click", async () => {
+  updateZoomLabel(await window.fireWill.setZoom("in"));
+});
+
+$("background-opacity").addEventListener("input", (event) => {
+  const opacity = event.target.value;
+  $("background-video").style.opacity = opacity;
+  localStorage.setItem("fireWill.backgroundOpacity", opacity);
+});
+
+async function initialize() {
+  if (!window.fireWill) {
+    setStatus("此界面需要通过 Fire Will 本地客户端打开。");
+    return;
+  }
+
+  const assets = await window.fireWill.getAssets();
+  $("background-video").src = assets.backgroundVideo;
+  $("brand-icon").src = assets.iconPng;
+  const backgroundOpacity = localStorage.getItem("fireWill.backgroundOpacity") || "0.7";
+  $("background-opacity").value = backgroundOpacity;
+  $("background-video").style.opacity = backgroundOpacity;
+  window.fireWill.onZoomChanged(updateZoomLabel);
+  const project = await window.fireWill.getState();
+  render(project);
 }
 
-setInterval(tickCooldowns, 250);
+initialize();
 
+setInterval(tickCooldowns, 250);

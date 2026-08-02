@@ -23,22 +23,29 @@ Warcraft III / 羁绊 I visual macro configurator.
 
 也可以双击 `启动源码宏配置器.bat`。
 
-## 新版 UI 框架
+## 新版本地客户端
 
-第一版新版 UI 已切到 WebView2 桌面壳：
+当前主框架为 Electron Portable，目标是打包成一个可直接双击运行的 Windows EXE。播放器、HTML/CSS UI 和本地配置桥接都包含在客户端中，不需要浏览器、WebView2、Qt 或 Python。首次启动时会把可写配置释放到当前用户的应用数据目录，后续修改不会因关闭客户端而丢失。
 
 ```powershell
-dotnet run --project .\app\FireWill.App\FireWill.App.csproj
+cd .\electron
+npm install
+npm start
 ```
 
-新版 UI 的定位是流程编排器：
+生成便携 EXE：
 
-- `ui/index.html`：全屏视频背景与三栏流程驾驶舱
-- `ui/styles/app.css`：响应式布局、半透明面板、HUD 风格视觉
-- `ui/scripts/app.js`：读取/渲染配置、保存用户快捷键与技能 CD 秒数
-- `app/FireWill.App`：WinForms + WebView2 宿主，读取现有 INI 配置
+```powershell
+npm run dist
+```
 
-当前底层执行逻辑仍由旧 `war3_macro_gui.ahk` 承担；新版 UI 先负责配置展示、用户快捷键输入、技能 CD 计时器和打开旧版配置器。
+主要目录：
+
+- `electron/main.js`：本地主进程、INI 读写和 AHK 执行器启动
+- `electron/preload.js`：隔离的前端/本地能力桥接
+- `electron/backend/`：内置 AHK 执行器、配置和英雄档案
+- `ui/`：全屏视频背景、响应式流程编排 UI 和技能 CD 计时器
+- `legacy-ahk/`：旧 AHK 源码归档
 
 ## 远程仓库
 

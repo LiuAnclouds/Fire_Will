@@ -11,7 +11,7 @@
   --gold: #e2b761;
   --cyan: #67d5d8;
   --ok: #62d087;
-  --radius: 14px;
+  --radius: 8px;
   --font: "Microsoft YaHei UI", "Source Han Sans SC", "Segoe UI", sans-serif;
 }
 
@@ -28,7 +28,7 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
-  font-size: clamp(13px, 1.05vw, 16px);
+  font-size: 15px;
 }
 
 button,
@@ -47,7 +47,9 @@ select {
 
 .backdrop-video {
   object-fit: cover;
+  opacity: 0.7;
   filter: saturate(1.05) contrast(1.08);
+  transition: opacity 180ms ease;
 }
 
 .shade {
@@ -95,7 +97,7 @@ select {
 .brand img {
   width: 42px;
   height: 42px;
-  border-radius: 10px;
+  border-radius: 6px;
 }
 
 .brand h1 {
@@ -126,10 +128,54 @@ select {
   color: var(--muted);
 }
 
+.backdrop-control,
+.zoom-control {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 7px 4px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--muted);
+}
+
+.backdrop-control input {
+  width: 72px;
+  min-height: auto;
+  padding: 0;
+  accent-color: var(--gold);
+}
+
+.zoom-control {
+  gap: 3px;
+  padding: 3px;
+}
+
+.zoom-control button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  font-size: 1.1rem;
+}
+
+.zoom-control output {
+  width: 42px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
 button {
   min-height: 34px;
   border: 1px solid rgba(226, 183, 97, 0.45);
-  border-radius: 10px;
+  border-radius: 6px;
   padding: 7px 12px;
   background: linear-gradient(135deg, rgba(226, 183, 97, 0.22), rgba(228, 75, 53, 0.18));
   color: var(--text);
@@ -193,7 +239,7 @@ button:hover {
 .binding-row,
 .cooldown-card {
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.055);
 }
 
@@ -241,7 +287,7 @@ button:hover {
 
 h2 {
   margin: 4px 0 0;
-  font-size: clamp(1.5rem, 2vw, 2.2rem);
+  font-size: 2rem;
   letter-spacing: 0;
 }
 
@@ -297,7 +343,7 @@ h2 {
 }
 
 .health-grid div {
-  border-radius: 12px;
+  border-radius: 6px;
   padding: 12px;
   background: rgba(0, 0, 0, 0.22);
 }
@@ -345,6 +391,13 @@ h3 {
   padding: 9px;
 }
 
+.binding-list .binding-row,
+.binding-grid .binding-row {
+  border-width: 0 0 1px;
+  border-radius: 0;
+  background: transparent;
+}
+
 .binding-grid .binding-row {
   grid-template-columns: 34px minmax(0, 1fr) 58px;
 }
@@ -358,7 +411,7 @@ select {
   width: 100%;
   min-height: 32px;
   border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 9px;
+  border-radius: 5px;
   padding: 6px 8px;
   background: rgba(2, 5, 8, 0.68);
   color: var(--text);
@@ -409,12 +462,23 @@ select:focus {
 }
 
 @media (max-width: 1260px) {
+  body {
+    overflow: auto;
+  }
+
+  .shell {
+    min-height: 100%;
+    height: auto;
+  }
+
   .workspace {
-    grid-template-columns: 210px minmax(420px, 1fr);
+    grid-template-columns: minmax(190px, 220px) minmax(420px, 1fr);
   }
 
   .right-stack {
-    display: none;
+    grid-column: 1 / -1;
+    grid-template-columns: minmax(260px, 0.72fr) minmax(440px, 1.28fr);
+    grid-template-rows: minmax(340px, 44vh);
   }
 
   .bottom-row {
@@ -434,7 +498,8 @@ select:focus {
 
   .topbar,
   .workspace,
-  .bottom-row {
+  .bottom-row,
+  .right-stack {
     grid-template-columns: 1fr;
   }
 
@@ -450,4 +515,3 @@ select:focus {
     grid-template-columns: 1fr;
   }
 }
-

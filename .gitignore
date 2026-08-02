@@ -31,3 +31,8 @@ Desktop.ini
 # Keep original root video out of source; committed UI asset lives in ui/assets/
 /background.mp4
 
+# Electron
+electron/node_modules/
+electron/dist/
+!electron/backend/war3_macro_gui.exe
+
