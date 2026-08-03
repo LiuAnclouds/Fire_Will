@@ -1,15 +1,15 @@
 :root {
   color-scheme: dark;
-  --line: rgba(255, 255, 255, 0.24);
-  --line-soft: rgba(255, 255, 255, 0.14);
+  --line: rgba(255, 255, 255, 0.34);
+  --line-soft: rgba(255, 255, 255, 0.2);
   --text: #f3f5f7;
   --muted: #c2c9d0;
   --weak: #8d99a5;
   --gold: #e3ba65;
   --cyan: #6ed7db;
   --red: #e45842;
-  --field: rgba(5, 8, 12, 0.68);
-  --panel: rgba(5, 8, 12, 0.38);
+  --field: transparent;
+  --panel: transparent;
   --font: "Microsoft YaHei UI", "Source Han Sans SC", "Segoe UI", sans-serif;
 }
 
@@ -43,14 +43,15 @@ button {
   border: 1px solid rgba(227, 186, 101, 0.46);
   border-radius: 3px;
   padding: 3px 9px;
-  background: rgba(31, 25, 18, 0.62);
+  background: transparent;
   color: var(--text);
   cursor: pointer;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.95);
 }
 
 button:hover {
   border-color: var(--gold);
-  background: rgba(72, 48, 25, 0.72);
+  background: rgba(227, 186, 101, 0.14);
 }
 
 .backdrop-video,
@@ -64,14 +65,15 @@ button:hover {
 .backdrop-video {
   z-index: 0;
   object-fit: cover;
-  opacity: 0.5;
-  filter: saturate(1.08) contrast(1.04);
+  opacity: 0.78;
+  filter: saturate(1.08) contrast(1.06);
   transition: opacity 180ms ease;
 }
 
 .shade {
   z-index: 1;
-  background: rgba(3, 5, 8, 0.35);
+  pointer-events: none;
+  background: rgba(3, 5, 8, 0.08);
 }
 
 .ahk-shell {
@@ -108,15 +110,16 @@ button:hover {
 .flow-side fieldset,
 .keymap-form fieldset {
   min-width: 0;
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  background: var(--panel);
-  backdrop-filter: blur(5px);
+  background: transparent;
 }
 
 .legacy-panel {
   margin: 0 0 9px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
   padding: 8px 10px 10px;
+  backdrop-filter: none;
 }
 
 legend {
@@ -235,19 +238,25 @@ input,
 select {
   width: 100%;
   min-height: 26px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 3px;
-  padding: 3px 6px;
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 0;
+  padding: 3px 4px;
   background: var(--field);
   color: var(--text);
   outline: none;
-  text-shadow: none;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.95);
 }
 
 input:focus,
 select:focus {
   border-color: var(--cyan);
-  box-shadow: 0 0 0 2px rgba(110, 215, 219, 0.13);
+  box-shadow: 0 1px 0 var(--cyan);
+}
+
+select option {
+  background: #10151b;
+  color: var(--text);
 }
 
 .flow-settings {
@@ -310,7 +319,11 @@ select:focus {
 
 .timing-panel {
   margin: 4px 0 8px;
+  border: 0;
+  border-top: 1px solid var(--line-soft);
+  border-radius: 0;
   padding: 5px 8px 7px;
+  backdrop-filter: none;
 }
 
 .delay-grid {
@@ -395,7 +408,11 @@ select:focus {
 
 .flow-side fieldset {
   margin: 0;
+  border: 0;
+  border-top: 1px solid var(--line-soft);
+  border-radius: 0;
   padding: 8px 10px 10px;
+  backdrop-filter: none;
 }
 
 .flow-side fieldset p {
@@ -488,6 +505,9 @@ select:focus {
 
 .keymap-form fieldset {
   margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: rgba(7, 10, 14, 0.72);
   padding: 9px;
 }
 
