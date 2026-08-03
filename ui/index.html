@@ -12,7 +12,7 @@
 
     <main class="ahk-shell">
       <header class="legacy-intro">
-        <p>原则：NPC菜单、技能、装备都用按键；坐标只用于 NPC 点击点、技能/装备鼠标点。F1 仅在释放类型不为无时用于选英雄。</p>
+        <p>原则：NPC 菜单、技能、装备都用按键；NPC 使用地图世界坐标投影到当前游戏客户区，技能/装备仍按原有映射执行。</p>
         <strong>当前配置英雄：<span id="current-profile">读取中</span></strong>
       </header>
 
@@ -85,20 +85,19 @@
         <legend>三、NPC / 坐标 / 平台按键标定</legend>
         <div class="npc-settings">
           <label>NPC<select id="npc-select"></select></label>
-          <span class="hint">NPC 点击不按 F1</span>
-          <label>点击点 X/Y <span class="dual-input"><input id="npc-x" type="text" /><input id="npc-y" type="text" /></span></label>
-          <button type="button" data-legacy="记录 NPC 点">记录 NPC 点</button>
+          <span class="hint">NPC 点击前自动按 F1 两次锁定人物视角</span>
+          <label>世界坐标 X/Y <span class="dual-input"><input id="npc-x" type="text" /><input id="npc-y" type="text" /></span></label>
           <label class="check-label"><input id="skip-game-check" type="checkbox" />跳过窗口检测</label>
           <button id="clear-npc" type="button">清空本区</button>
         </div>
         <div class="npc-actions">
-          <p>NPC 不再使用矩形，执行时直接点击这个点。F7/F8 单按采样；双按 F7 上一个 NPC，双按 F8 下一个 NPC。</p>
+          <p>NPC 使用地图世界坐标；F1 两次锁定人物视角后换算为当前客户区坐标。</p>
           <button id="save-npc" type="button">保存 NPC</button>
           <button id="open-keymap-npc" type="button">平台按键映射表</button>
-          <button type="button" data-legacy="绑定游戏窗口">绑定游戏窗口</button>
-          <button type="button" data-legacy="复制当前窗口">复制当前窗口</button>
+          <button id="initialize-game" type="button">绑定游戏窗口并初始化</button>
+          <span id="game-session-state" class="session-state" role="status">未初始化</span>
         </div>
-        <p class="wide-note">建议：NPC 点位标到菜单可点位置中心。F5/F6 单按采技能鼠标点，双按 F5/F6 切换刷本项；自动施法需要开启平台内快捷施法，程序只在自动释放前按 F1 选英雄。</p>
+        <p class="wide-note">首次进入本局请点“绑定游戏窗口并初始化”。初始化只做一次窗口、客户区、DPI、Game.dll 和 NPC 世界坐标索引；执行每个 NPC 前会按 F1 两次锁定人物视角，再将世界坐标投影为当前客户区坐标并做吸附。</p>
       </fieldset>
 
       <fieldset class="legacy-panel credits-panel">

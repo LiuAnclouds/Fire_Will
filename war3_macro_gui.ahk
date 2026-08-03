@@ -15,6 +15,7 @@ appIconPath := A_ScriptDir "\icon.ico"
 appIconSmall := 0
 appIconLarge := 0
 configPath := A_ScriptDir "\war3_macro_gui.ini"
+sessionPath := A_ScriptDir "\war3_session.ini"
 profileDir := A_ScriptDir "\profiles"
 flowCount := 8
 groupCount := 8
@@ -59,6 +60,42 @@ activeReleaseMouseMoveDelayMs := defaultReleaseMouseMoveDelayMs
 currentProfileName := "默认/未读取"
 currentProfilePath := ""
 currentProfileText := ""
+
+; Per-game values are intentionally transient. NPC world coordinates and the
+; projection constants are stable configuration; PID/HWND/client geometry are
+; rebuilt once when the user presses "绑定游戏窗口并初始化".
+gameSession := Map(
+    "ready", false,
+    "projectionReady", false,
+    "hwnd", 0,
+    "pid", 0,
+    "clientLeft", 0,
+    "clientTop", 0,
+    "clientWidth", 0,
+    "clientHeight", 0,
+    "dpi", 96,
+    "gameBase", 0,
+    "gameModuleName", "",
+    "cameraX", 0.0,
+    "cameraY", 0.0,
+    "cameraZoom", 1.0
+)
+worldProjection := Map(
+    "cameraXOffset", "",
+    "cameraYOffset", "",
+    "cameraZoomOffset", "",
+    "cameraXIndirect", 0,
+    "cameraYIndirect", 0,
+    "cameraZoomIndirect", 0,
+    "axisX", 0.70710678,
+    "axisY", 0.70710678,
+    "verticalScale", 0.5,
+    "pixelsPerWorld", "",
+    "snapRadius1080", 24,
+    "f1SettleMs", 40,
+    "clickAnchorX", 0,
+    "clickAnchorY", 0
+)
 
 gameMatchers := [
     "ahk_exe War3.exe",
@@ -115,6 +152,9 @@ BuildDefaults()
 LoadConfig()
 BuildGui()
 ApplyFlowHotkeys()
+if HasCommandLineArg("--initialize") {
+    SetTimer InitializeGameSession, -350
+}
 
 #HotIf IsMacroHotkeysActive()
 F5::HandleFarmSampleHotkey(-1)
@@ -159,7 +199,9 @@ BuildDefaults() {
     for _, name in npcNames {
         npcs[name] := Map(
             "camera", "",
-            "x", "", "y", ""
+            "x", "", "y", "",
+            "worldX", "", "worldY", "",
+            "npcId", ""
         )
     }
     npcs["妙木山大蛤蟆"]["x"] := 845
@@ -168,6 +210,15 @@ BuildDefaults() {
     npcs["妙木山挑战自我NPC"]["y"] := 689
     npcs["尾兽处追捕逃忍NPC"]["x"] := 977
     npcs["尾兽处追捕逃忍NPC"]["y"] := 509
+
+    ; Aliases keep the old workflow names usable while the click itself uses
+    ; the verified map/world coordinates. The screen x/y fields remain only
+    ; for migration and are no longer read by ExecuteNpcAction.
+    SetNpcWorldDefaults(npcs["妙木山大蛤蟆"], -5056, 2368, "n012-01")
+    SetNpcWorldDefaults(npcs["妙木山挑战自我NPC"], 3968, 3520, "n00A-01")
+    SetNpcWorldDefaults(npcs["家里挑战自我NPC"], -4416, 1792, "n011-01")
+    SetNpcWorldDefaults(npcs["家里追捕逃忍NPC"], -2432, -3648, "n01E-01")
+    SetNpcWorldDefaults(npcs["尾兽处追捕逃忍NPC"], 3520, 4480, "n01E-02")
 
     farmMeta["妙木山挑战自我x20"] := Map("npc", "妙木山挑战自我NPC", "action", "x20")
     farmMeta["妙木山挑战自我x5"] := Map("npc", "妙木山挑战自我NPC", "action", "x5")
@@ -227,6 +278,12 @@ DefaultGroup() {
     )
 }
 
+SetNpcWorldDefaults(npc, x, y, npcId := "") {
+    npc["worldX"] := x
+    npc["worldY"] := y
+    npc["npcId"] := npcId
+}
+
 DefaultFlowName(slot) {
     return "自定义流程" slot
 }
@@ -243,7 +300,7 @@ LoadConfig() {
     global configPath, profileDir, npcs, farms, flows, keyMap, gameWindowMatcher, skipGameCheck, stopHotkey, defaultStopHotkey
     global keyDelayMs, skillKeyDelayMs, heroSelectDelayMs, npcClickDelayMs, chatDelayMs, teleportKeyDelayMs, mouseMoveDelayMs, releaseMouseMoveDelayMs
     global defaultKeyDelayMs, defaultSkillKeyDelayMs, defaultHeroSelectDelayMs, defaultNpcClickDelayMs, defaultChatDelayMs, defaultTeleportKeyDelayMs, defaultMouseMoveDelayMs, defaultReleaseMouseMoveDelayMs
-    global currentProfileName, currentProfilePath
+    global currentProfileName, currentProfilePath, worldProjection
     global npcNames, farmNames, flowNames, flowCount, groupCount, skillSlotCount, itemSlotCount
 
     gameWindowMatcher := IniRead(configPath, "General", "gameWindowMatcher", gameWindowMatcher)
@@ -278,6 +335,9 @@ LoadConfig() {
         rawY := IniRead(configPath, section, "y", npc["y"])
         npc["x"] := NormalizeCoord(rawX)
         npc["y"] := NormalizeCoord(rawY)
+        npc["worldX"] := NormalizeWorldCoord(IniRead(configPath, section, "worldX", npc["worldX"]))
+        npc["worldY"] := NormalizeWorldCoord(IniRead(configPath, section, "worldY", npc["worldY"]))
+        npc["npcId"] := Trim(IniRead(configPath, section, "npcId", npc["npcId"]))
         if npc["x"] = "" || npc["y"] = "" {
             oldX1 := NormalizeCoord(IniRead(configPath, section, "x1", ""))
             oldY1 := NormalizeCoord(IniRead(configPath, section, "y1", ""))
@@ -289,6 +349,21 @@ LoadConfig() {
             }
         }
     }
+
+    worldProjection["cameraXOffset"] := Trim(IniRead(configPath, "WorldProjection", "cameraXOffset", worldProjection["cameraXOffset"]))
+    worldProjection["cameraYOffset"] := Trim(IniRead(configPath, "WorldProjection", "cameraYOffset", worldProjection["cameraYOffset"]))
+    worldProjection["cameraZoomOffset"] := Trim(IniRead(configPath, "WorldProjection", "cameraZoomOffset", worldProjection["cameraZoomOffset"]))
+    worldProjection["cameraXIndirect"] := ToInt(IniRead(configPath, "WorldProjection", "cameraXIndirect", worldProjection["cameraXIndirect"]), worldProjection["cameraXIndirect"])
+    worldProjection["cameraYIndirect"] := ToInt(IniRead(configPath, "WorldProjection", "cameraYIndirect", worldProjection["cameraYIndirect"]), worldProjection["cameraYIndirect"])
+    worldProjection["cameraZoomIndirect"] := ToInt(IniRead(configPath, "WorldProjection", "cameraZoomIndirect", worldProjection["cameraZoomIndirect"]), worldProjection["cameraZoomIndirect"])
+    worldProjection["axisX"] := ToFloat(IniRead(configPath, "WorldProjection", "axisX", worldProjection["axisX"]), worldProjection["axisX"])
+    worldProjection["axisY"] := ToFloat(IniRead(configPath, "WorldProjection", "axisY", worldProjection["axisY"]), worldProjection["axisY"])
+    worldProjection["verticalScale"] := ToFloat(IniRead(configPath, "WorldProjection", "verticalScale", worldProjection["verticalScale"]), worldProjection["verticalScale"])
+    worldProjection["pixelsPerWorld"] := Trim(IniRead(configPath, "WorldProjection", "pixelsPerWorld", worldProjection["pixelsPerWorld"]))
+    worldProjection["snapRadius1080"] := Clamp(ToInt(IniRead(configPath, "WorldProjection", "snapRadius1080", worldProjection["snapRadius1080"]), worldProjection["snapRadius1080"]), 4, 200)
+    worldProjection["f1SettleMs"] := Clamp(ToInt(IniRead(configPath, "WorldProjection", "f1SettleMs", worldProjection["f1SettleMs"]), worldProjection["f1SettleMs"]), 0, 500)
+    worldProjection["clickAnchorX"] := ToFloat(IniRead(configPath, "WorldProjection", "clickAnchorX", worldProjection["clickAnchorX"]), worldProjection["clickAnchorX"])
+    worldProjection["clickAnchorY"] := ToFloat(IniRead(configPath, "WorldProjection", "clickAnchorY", worldProjection["clickAnchorY"]), worldProjection["clickAnchorY"])
 
     for _, name in farmNames {
         section := "Farm." name
@@ -362,7 +437,7 @@ LoadConfig() {
 SaveConfig() {
     global configPath, npcs, farms, flows, keyMap, gameWindowMatcher, skipGameCheck, stopHotkey
     global keyDelayMs, skillKeyDelayMs, heroSelectDelayMs, npcClickDelayMs, chatDelayMs, teleportKeyDelayMs, mouseMoveDelayMs, releaseMouseMoveDelayMs
-    global currentProfileName, currentProfilePath
+    global currentProfileName, currentProfilePath, worldProjection
     global npcNames, farmNames, flowCount, groupCount, skillSlotCount, itemSlotCount
 
     IniWrite(gameWindowMatcher, configPath, "General", "gameWindowMatcher")
@@ -384,6 +459,10 @@ SaveConfig() {
         for key, value in npcs[name] {
             IniWrite(value, configPath, section, key)
         }
+    }
+
+    for key, value in worldProjection {
+        IniWrite(value, configPath, "WorldProjection", key)
     }
 
     for _, name in farmNames {
@@ -821,7 +900,7 @@ BuildGui() {
     mainGui.AddText("x34 y706 w70", "NPC")
     npcDDL := mainGui.AddDropDownList("x104 y702 w190", npcNames)
     npcDDL.OnEvent("Change", OnNpcChanged)
-    mainGui.AddText("x316 y706 w150", "NPC点击不按F1")
+    mainGui.AddText("x316 y706 w150", "NPC点击前F1两次")
     mainGui.AddText("x486 y706 w76", "点击点X/Y")
     npcXEdit := mainGui.AddEdit("x584 y702 w70", "")
     npcYEdit := mainGui.AddEdit("x662 y702 w70", "")
@@ -843,7 +922,7 @@ BuildGui() {
     copyInfoBtn := mainGui.AddButton("x920 y738 w150", "复制当前窗口")
     copyInfoBtn.OnEvent("Click", CopyActiveWindowInfo)
 
-    mainGui.AddText("x34 y788 w1040", "建议：NPC点位标到菜单可点位置中心。F5/F6单按采技能鼠标点，双按F5/F6切换刷本项；自动施法需要开启平台内快捷施法，程序只在自动释放前按F1选英雄。")
+    mainGui.AddText("x34 y788 w1040", "建议：NPC点位标到菜单可点位置中心。F5/F6单按采技能鼠标点，双按F5/F6切换刷本项；NPC点击前自动按F1两次锁定人物视角。")
 
     mainGui.AddGroupBox("x16 y850 w1128 h88", "感谢支持")
     mainGui.AddText("x34 y874 w1090 h54", "1. 此软件由WosCat@月吟开发，感谢支持。有问题请联系作者微信 xu3071744684`n2. 大力感谢航哥@远航gh的支持，感谢航哥的测试`n3. 感谢橘子哥@橘子怪的支持`n4. 感谢比奇堡@兄弟们的支持")
@@ -940,7 +1019,7 @@ ClearNpcSettings(*) {
 
     npcs := Map()
     for _, name in npcNames {
-        npcs[name] := Map("camera", "", "x", "", "y", "")
+        npcs[name] := Map("camera", "", "x", "", "y", "", "worldX", "", "worldY", "", "npcId", "")
     }
     npcs["妙木山大蛤蟆"]["x"] := 845
     npcs["妙木山大蛤蟆"]["y"] := 390
@@ -948,6 +1027,11 @@ ClearNpcSettings(*) {
     npcs["妙木山挑战自我NPC"]["y"] := 689
     npcs["尾兽处追捕逃忍NPC"]["x"] := 977
     npcs["尾兽处追捕逃忍NPC"]["y"] := 509
+    SetNpcWorldDefaults(npcs["妙木山大蛤蟆"], -5056, 2368, "n012-01")
+    SetNpcWorldDefaults(npcs["妙木山挑战自我NPC"], 3968, 3520, "n00A-01")
+    SetNpcWorldDefaults(npcs["家里挑战自我NPC"], -4416, 1792, "n011-01")
+    SetNpcWorldDefaults(npcs["家里追捕逃忍NPC"], -2432, -3648, "n01E-01")
+    SetNpcWorldDefaults(npcs["尾兽处追捕逃忍NPC"], 3520, 4480, "n01E-02")
 
     keyMap := Map()
     Loop skillSlotCount {
@@ -2198,17 +2282,9 @@ ExecuteFarmStep(name) {
 }
 
 ExecuteNpcAction(npcName, action, commandKey) {
-    global npcs
-    npc := npcs[npcName]
-    if !IsPointConfigured(npc["x"], npc["y"]) {
-        SetStatus("NPC未标定点击坐标：" npcName "。请先在“NPC / 坐标”里记录NPC点。")
+    if !ClickWorldNpc(npcName) {
         return false
     }
-
-    MouseMove Integer(npc["x"]), Integer(npc["y"]), 0
-    MouseMoveDelay()
-    GameLeftClick()
-    NpcClickDelay()
 
     switch action {
         case "x20", "x10", "x5", "追捕", "去尾兽处", "命令键":
@@ -2793,6 +2869,339 @@ CopyActiveWindowInfo(*) {
     SetStatus("已复制当前窗口信息：HWND " hwnd " / PID " pid " / " WindowProcessLabel(exe) " / " title "。")
 }
 
+HasCommandLineArg(expected) {
+    for _, value in A_Args {
+        if StrLower(Trim(value)) = StrLower(expected) {
+            return true
+        }
+    }
+    return false
+}
+
+InitializeGameSession(*) {
+    global gameSession, gameWindowMatcher, worldProjection
+
+    WriteGameSession("initializing", "正在绑定游戏窗口并读取本局参数。", false)
+    if !FindAndBindGameWindow() {
+        WriteGameSession("error", "绑定失败：找不到 War3 游戏窗口。", false)
+        return false
+    }
+
+    hwnd := GetBoundGameHwnd()
+    if !hwnd {
+        WriteGameSession("error", "绑定失败：窗口句柄无效。", false)
+        return false
+    }
+    metrics := ReadGameClientMetrics(hwnd)
+    if !metrics.Has("width") || metrics["width"] <= 0 || metrics["height"] <= 0 {
+        WriteGameSession("error", "绑定失败：无法读取游戏客户区。", false)
+        return false
+    }
+
+    pid := GetWindowPid(hwnd)
+    if !pid {
+        WriteGameSession("error", "绑定失败：无法读取游戏 PID。", false)
+        return false
+    }
+
+    gameSession["hwnd"] := hwnd
+    gameSession["pid"] := pid
+    gameSession["clientLeft"] := metrics["left"]
+    gameSession["clientTop"] := metrics["top"]
+    gameSession["clientWidth"] := metrics["width"]
+    gameSession["clientHeight"] := metrics["height"]
+    gameSession["dpi"] := metrics["dpi"]
+    gameSession["gameBase"] := FindRemoteModuleBase(pid, "Game.dll")
+    gameSession["gameModuleName"] := gameSession["gameBase"] ? "Game.dll" : ""
+    gameSession["ready"] := true
+    gameSession["projectionReady"] := false
+
+    if !gameSession["gameBase"] {
+        message := "窗口已绑定，但读取 Game.dll 基址失败。请用管理员权限启动执行器。"
+        WriteGameSession("bound", message, false)
+        SetStatus(message)
+        return false
+    }
+
+    if !RefreshCameraSnapshot() {
+        message := "窗口和 Game.dll 已绑定；镜头偏移尚未通过当前版本校验，暂不执行世界坐标点击。"
+        WriteGameSession("bound", message, false)
+        SetStatus(message)
+        return true
+    }
+
+    gameSession["projectionReady"] := IsProjectionConfigured()
+    message := gameSession["projectionReady"]
+        ? "本局初始化完成：窗口、客户区、DPI、Game.dll 和镜头投影均可用。"
+        : "本局已绑定；投影参数不完整，暂不执行世界坐标点击。"
+    WriteGameSession("ready", message, gameSession["projectionReady"])
+    SetStatus(message)
+    QuietTip(gameSession["projectionReady"] ? "本局初始化完成" : "已绑定，等待镜头校验", 1800)
+    return gameSession["projectionReady"]
+}
+
+GetBoundGameHwnd() {
+    global gameWindowMatcher
+    if gameWindowMatcher = "" {
+        return 0
+    }
+    try {
+        return WinExist(gameWindowMatcher)
+    } catch {
+        return 0
+    }
+}
+
+GetWindowPid(hwnd) {
+    pid := 0
+    DllCall("GetWindowThreadProcessId", "ptr", hwnd, "uint*", &pid)
+    return pid
+}
+
+ReadGameClientMetrics(hwnd) {
+    result := Map()
+    rect := Buffer(16, 0)
+    point := Buffer(8, 0)
+    if !DllCall("GetClientRect", "ptr", hwnd, "ptr", rect) {
+        return result
+    }
+    if !DllCall("ClientToScreen", "ptr", hwnd, "ptr", point) {
+        return result
+    }
+    result["left"] := NumGet(point, 0, "int")
+    result["top"] := NumGet(point, 4, "int")
+    result["width"] := NumGet(rect, 8, "int")
+    result["height"] := NumGet(rect, 12, "int")
+    result["dpi"] := 96
+    try result["dpi"] := DllCall("GetDpiForWindow", "ptr", hwnd, "uint")
+    return result
+}
+
+FindRemoteModuleBase(pid, moduleName) {
+    process := DllCall("OpenProcess", "uint", 0x0410, "int", false, "uint", pid, "ptr")
+    if process {
+        try {
+            moduleBuffer := Buffer(A_PtrSize * 512, 0)
+            needed := 0
+            if DllCall("Psapi\\EnumProcessModulesEx", "ptr", process, "ptr", moduleBuffer, "uint", moduleBuffer.Size, "uint*", &needed, "uint", 3) {
+                count := Floor(needed / A_PtrSize)
+                Loop count {
+                    module := NumGet(moduleBuffer, (A_Index - 1) * A_PtrSize, "ptr")
+                    nameBuffer := Buffer(520, 0)
+                    if !DllCall("Psapi\\GetModuleBaseNameW", "ptr", process, "ptr", module, "ptr", nameBuffer, "uint", 260) {
+                        continue
+                    }
+                    currentName := StrGet(nameBuffer, "UTF-16")
+                    if StrLower(currentName) != StrLower(moduleName) {
+                        continue
+                    }
+                    info := Buffer(A_PtrSize * 2 + 8, 0)
+                    if DllCall("Psapi\\GetModuleInformation", "ptr", process, "ptr", module, "ptr", info, "uint", info.Size) {
+                        return NumGet(info, 0, "ptr")
+                    }
+                }
+            }
+        } finally {
+            DllCall("CloseHandle", "ptr", process)
+        }
+    }
+    ; Psapi can reject a 32-bit target from a 64-bit caller. Toolhelp32 uses
+    ; the target's MODULEENTRY32W layout and works for both architectures.
+    snapshot := DllCall("kernel32\\CreateToolhelp32Snapshot", "uint", 0x18, "uint", pid, "ptr")
+    if !snapshot || snapshot = -1 {
+        return 0
+    }
+    try {
+        entry := Buffer(1080, 0)
+        NumPut("uint", 1080, entry, 0)
+        if !DllCall("kernel32\\Module32FirstW", "ptr", snapshot, "ptr", entry) {
+            return 0
+        }
+        loop {
+            currentName := StrGet(entry.Ptr + 32, 256, "UTF-16")
+            if StrLower(currentName) = StrLower(moduleName) {
+                return NumGet(entry, 24, "uint")
+            }
+            if !DllCall("kernel32\\Module32NextW", "ptr", snapshot, "ptr", entry) {
+                break
+            }
+            NumPut("uint", 1080, entry, 0)
+        }
+    } finally {
+        DllCall("CloseHandle", "ptr", snapshot)
+    }
+    return 0
+}
+
+OpenGameProcess() {
+    global gameSession
+    if gameSession.Has("processHandle") && gameSession["processHandle"] {
+        return gameSession["processHandle"]
+    }
+    pid := ToInt(gameSession["pid"], 0)
+    if !pid {
+        return 0
+    }
+    handle := DllCall("OpenProcess", "uint", 0x0438, "int", false, "uint", pid, "ptr")
+    if handle {
+        gameSession["processHandle"] := handle
+    }
+    return handle
+}
+
+ReadRemoteBytes(address, size) {
+    handle := OpenGameProcess()
+    if !handle || !address || size <= 0 {
+        return 0
+    }
+    data := Buffer(size, 0)
+    read := 0
+    if !DllCall("ReadProcessMemory", "ptr", handle, "ptr", address, "ptr", data, "uptr", size, "uptr*", &read) || read != size {
+        return 0
+    }
+    return data
+}
+
+ReadRemoteFloat(address) {
+    data := ReadRemoteBytes(address, 4)
+    if !data {
+        return ""
+    }
+    value := NumGet(data, 0, "float")
+    return (value = value && Abs(value) < 1000000) ? value : ""
+}
+
+ReadRemotePtr(address) {
+    data := ReadRemoteBytes(address, A_PtrSize)
+    if !data {
+        return 0
+    }
+    return NumGet(data, 0, "ptr")
+}
+
+ReadProjectionValue(offsetText, indirectDepth := 0) {
+    global gameSession
+    offsetText := Trim(offsetText)
+    if offsetText = "" || !gameSession["gameBase"] {
+        return ""
+    }
+    try offset := Integer(offsetText)
+    catch {
+        return ""
+    }
+    address := gameSession["gameBase"] + offset
+    Loop Max(0, indirectDepth) {
+        address := ReadRemotePtr(address)
+        if !address {
+            return ""
+        }
+    }
+    return ReadRemoteFloat(address)
+}
+
+RefreshCameraSnapshot() {
+    global gameSession, worldProjection
+    if !gameSession["gameBase"] {
+        return false
+    }
+    x := ReadProjectionValue(worldProjection["cameraXOffset"], worldProjection["cameraXIndirect"])
+    y := ReadProjectionValue(worldProjection["cameraYOffset"], worldProjection["cameraYIndirect"])
+    zoom := ReadProjectionValue(worldProjection["cameraZoomOffset"], worldProjection["cameraZoomIndirect"])
+    if x = "" || y = "" {
+        return false
+    }
+    gameSession["cameraX"] := x
+    gameSession["cameraY"] := y
+    gameSession["cameraZoom"] := zoom = "" || zoom <= 0 ? 1.0 : zoom
+    return true
+}
+
+IsProjectionConfigured() {
+    global worldProjection
+    return Trim(worldProjection["pixelsPerWorld"]) != ""
+        && Trim(worldProjection["cameraXOffset"]) != ""
+        && Trim(worldProjection["cameraYOffset"]) != ""
+}
+
+WorldToClient(worldX, worldY, &clientX, &clientY) {
+    global gameSession, worldProjection
+    if !gameSession["ready"] || !IsProjectionConfigured() || !RefreshCameraSnapshot() {
+        return false
+    }
+    pixelsPerWorld := ToFloat(worldProjection["pixelsPerWorld"], 0)
+    if pixelsPerWorld <= 0 {
+        return false
+    }
+    dx := ToFloat(worldX, 0) - gameSession["cameraX"]
+    dy := ToFloat(worldY, 0) - gameSession["cameraY"]
+    zoom := gameSession["cameraZoom"]
+    axisX := worldProjection["axisX"]
+    axisY := worldProjection["axisY"]
+    clientX := gameSession["clientWidth"] / 2 + ((dx * axisX) + (dy * axisY)) * pixelsPerWorld * zoom + worldProjection["clickAnchorX"]
+    clientY := gameSession["clientHeight"] / 2 + ((dx * axisY) - (dy * axisX)) * pixelsPerWorld * worldProjection["verticalScale"] * zoom + worldProjection["clickAnchorY"]
+    return clientX >= 0 && clientX <= gameSession["clientWidth"] && clientY >= 0 && clientY <= gameSession["clientHeight"]
+}
+
+GetNpcSnapRadius() {
+    global gameSession, worldProjection
+    height := Max(1, ToInt(gameSession["clientHeight"], 1080))
+    return Clamp(Round(worldProjection["snapRadius1080"] * height / 1080), 4, 200)
+}
+
+ClickWorldNpc(npcName) {
+    global npcs, gameSession, worldProjection
+    if !gameSession["ready"] {
+        SetStatus("本局尚未初始化，请先点“绑定游戏窗口并初始化”。")
+        return false
+    }
+    if !npcs.Has(npcName) || npcs[npcName]["worldX"] = "" || npcs[npcName]["worldY"] = "" {
+        SetStatus("NPC没有世界坐标配置：" npcName "。")
+        return false
+    }
+    ; Warcraft III uses the first F1 press to select the hero and the second
+    ; press to lock the camera on that hero. Keep both presses explicit so the
+    ; projection is refreshed only after the camera has settled.
+    SendTimedGameKey("F1", activeHeroSelectDelayMs, HeroSelectMinHoldMs(), 80)
+    SleepInterrupt(35)
+    SendTimedGameKey("F1", activeHeroSelectDelayMs, HeroSelectMinHoldMs(), 80)
+    SleepInterrupt(ToInt(worldProjection["f1SettleMs"], 40))
+    if !IsProjectionConfigured() || !WorldToClient(npcs[npcName]["worldX"], npcs[npcName]["worldY"], &clientX, &clientY) {
+        SetStatus("NPC不在当前可点击视野内，未发送鼠标点击：" npcName "。")
+        return false
+    }
+
+    ; The projected point is the snap target. The radius scales with the
+    ; client height, so 1080p/2K/4K keep the same physical hit tolerance.
+    snapRadius := GetNpcSnapRadius()
+    clientX := Clamp(Round(clientX), snapRadius, gameSession["clientWidth"] - snapRadius)
+    clientY := Clamp(Round(clientY), snapRadius, gameSession["clientHeight"] - snapRadius)
+    screenX := gameSession["clientLeft"] + clientX
+    screenY := gameSession["clientTop"] + clientY
+    MouseMove screenX, screenY, 0
+    MouseMoveDelay()
+    GameLeftClick()
+    NpcClickDelay()
+    return true
+}
+
+WriteGameSession(state, message, projectionReady := false) {
+    global sessionPath, gameSession, worldProjection
+    IniWrite(state = "ready" ? 1 : 0, sessionPath, "Session", "ready")
+    IniWrite(state, sessionPath, "Session", "state")
+    IniWrite(message, sessionPath, "Session", "message")
+    IniWrite(gameSession["pid"], sessionPath, "Session", "pid")
+    IniWrite(gameSession["hwnd"], sessionPath, "Session", "hwnd")
+    IniWrite(gameSession["clientLeft"], sessionPath, "Session", "clientLeft")
+    IniWrite(gameSession["clientTop"], sessionPath, "Session", "clientTop")
+    IniWrite(gameSession["clientWidth"], sessionPath, "Session", "clientWidth")
+    IniWrite(gameSession["clientHeight"], sessionPath, "Session", "clientHeight")
+    IniWrite(gameSession["dpi"], sessionPath, "Session", "dpi")
+    IniWrite(gameSession["gameBase"] ? Format("0x{:X}", gameSession["gameBase"]) : "", sessionPath, "Session", "moduleBase")
+    IniWrite(gameSession["gameModuleName"], sessionPath, "Session", "moduleName")
+    IniWrite(projectionReady ? 1 : 0, sessionPath, "Session", "projectionReady")
+    IniWrite(FormatTime(A_Now, "yyyy-MM-dd HH:mm:ss"), sessionPath, "Session", "updatedAt")
+}
+
 BindGameWindowAfterDelay(*) {
     SetStatus("请在 3 秒内切到游戏窗口；也可以在游戏里按 Ctrl+Alt+B 直接绑定当前窗口。")
     QuietTip("3秒内切到游戏窗口", 2500)
@@ -2812,7 +3221,7 @@ BindActiveWindowAsGame(*) {
 }
 
 BindWindowHwndAsGame(hwnd, source := "窗口") {
-    global gameWindowMatcher
+    global gameWindowMatcher, gameSession
     if hwnd = "" || hwnd = 0 {
         SetStatus("绑定失败：没有读到" source "句柄。")
         return false
@@ -2835,6 +3244,12 @@ BindWindowHwndAsGame(hwnd, source := "窗口") {
     }
 
     gameWindowMatcher := "ahk_id " hwnd
+    gameSession["ready"] := false
+    gameSession["projectionReady"] := false
+    if gameSession.Has("processHandle") && gameSession["processHandle"] {
+        try DllCall("CloseHandle", "ptr", gameSession["processHandle"])
+        gameSession.Delete("processHandle")
+    }
     SaveConfig()
     SetStatus("已绑定游戏窗口(" source ")：" gameWindowMatcher " / PID " pid " / " WindowProcessLabel(exe) " / " title " / " className "。")
     QuietTip("已绑定游戏窗口", 1200)
@@ -3015,6 +3430,26 @@ NormalizeCoord(value) {
         return ""
     }
     return ToInt(value, "")
+}
+
+NormalizeWorldCoord(value) {
+    value := Trim(value)
+    if value = "" {
+        return ""
+    }
+    try {
+        return Float(value)
+    } catch {
+        return ""
+    }
+}
+
+ToFloat(value, defaultValue := 0.0) {
+    try {
+        return Float(value)
+    } catch {
+        return defaultValue
+    }
 }
 
 IsPointConfigured(x, y) {

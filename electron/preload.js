@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld("fireWill", {
   saveBindings: (payload) => ipcRenderer.invoke("project:save-bindings", payload),
   getAssets: () => ipcRenderer.invoke("project:get-assets"),
   launchBackend: () => ipcRenderer.invoke("backend:launch"),
+  initializeGameSession: () => ipcRenderer.invoke("game:initialize"),
+  getGameSession: () => ipcRenderer.invoke("game:get-session"),
   setZoom: (action) => ipcRenderer.invoke("window:set-zoom", action),
   onZoomChanged: (callback) => {
     ipcRenderer.on("window:zoom-changed", (_, percent) => callback(percent));

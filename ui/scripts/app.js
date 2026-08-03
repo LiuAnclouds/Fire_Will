@@ -10,6 +10,18 @@ function setStatus(text) {
   $("status-bar").textContent = `状态：${text}`;
 }
 
+function renderGameSession(session = {}) {
+  const stateText = session.ready
+    ? (session.projectionReady ? "已初始化 · 投影可用" : "已绑定 · 等待镜头校验")
+    : (session.state || "未初始化");
+  const node = $("game-session-state");
+  if (node) {
+    node.textContent = stateText;
+    node.title = session.message || "";
+    node.dataset.ready = session.ready ? "1" : "0";
+  }
+}
+
 function escapeHtml(value = "") {
   return String(value).replace(/[&<>"']/g, (char) => ({
     "&": "&amp;",
@@ -42,6 +54,7 @@ function render(project) {
   renderFlow(project);
   renderNpcSelector(project);
   renderNpc(project);
+  renderGameSession(project.gameSession);
   setStatus(project.toast || "已加载配置。布局字段对应旧版 AHK 配置器。");
 }
 
@@ -163,8 +176,8 @@ function renderNpc(project) {
   const npc = project.npcs[state.selectedNpc] || project.npcs[0];
   if (!npc) return;
   $("npc-select").value = String(state.selectedNpc);
-  $("npc-x").value = npc.x || "";
-  $("npc-y").value = npc.y || "";
+  $("npc-x").value = npc.worldX || "";
+  $("npc-y").value = npc.worldY || "";
 }
 
 function syncFlowToState() {
@@ -189,8 +202,8 @@ function syncFlowToState() {
 function syncNpcToState() {
   const npc = state.project?.npcs[state.selectedNpc];
   if (!npc) return;
-  npc.x = $("npc-x").value.trim();
-  npc.y = $("npc-y").value.trim();
+  npc.worldX = $("npc-x").value.trim();
+  npc.worldY = $("npc-y").value.trim();
 }
 
 function collectLayout() {
@@ -255,6 +268,26 @@ function bindLegacyActions() {
   });
 }
 
+async function initializeGameSession() {
+  if (!window.fireWill) return;
+  const result = await window.fireWill.initializeGameSession();
+  render(result);
+  setStatus("已请求管理员权限。请在 UAC 中允许 AHK 读取游戏窗口；等待本局初始化完成。");
+
+  let attempts = 0;
+  const poll = async () => {
+    attempts += 1;
+    const session = await window.fireWill.getGameSession();
+    renderGameSession(session);
+    if (session.ready || attempts >= 20) {
+      setStatus(session.message || (session.ready ? "本局游戏已初始化。" : "初始化未完成，请检查游戏窗口和管理员权限。"));
+      return;
+    }
+    window.setTimeout(poll, 500);
+  };
+  window.setTimeout(poll, 500);
+}
+
 function openKeymap() {
   renderKeymap();
   $("keymap-dialog").showModal();
@@ -308,6 +341,7 @@ $("open-keymap-top").addEventListener("click", openKeymap);
 $("open-keymap-npc").addEventListener("click", openKeymap);
 $("save-keymap").addEventListener("click", saveKeymap);
 $("stop-flow").addEventListener("click", () => setStatus("停止热键仍由内置 AHK 执行器接管。"));
+$("initialize-game").addEventListener("click", initializeGameSession);
 
 $("save-profile-as").addEventListener("click", async () => {
   const profileName = window.prompt("请输入英雄名称", state.project?.profileName || "");
