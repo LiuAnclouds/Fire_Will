@@ -394,20 +394,24 @@ function launchBackend(options = {}) {
   if (!fs.existsSync(executable)) return readState("找不到内置 AHK 执行器。");
 
   try {
-    const args = options.initialize ? ["--initialize"] : [];
+    const args = options.initialize
+      ? ["--initialize"]
+      : options.background
+        ? ["--background"]
+        : [];
     let child;
-    if (options.initialize) {
+    if (options.initialize || options.elevated) {
       // Memory/session initialization needs the same elevation as the game.
       const fileArg = "'" + executable.replace(/'/g, "''") + "'";
       const argumentList = args.length
-        ? ", -ArgumentList @(" + args.map((arg) => "'" + arg + "'").join(",") + ")"
+        ? " -ArgumentList @(" + args.map((arg) => "'" + arg + "'").join(",") + ")"
         : "";
-      const command = "Start-Process -FilePath " + fileArg + " -Verb RunAs" + argumentList;
+      const command = "Start-Process -FilePath " + fileArg + " -Verb RunAs" + argumentList + " -WindowStyle Hidden";
       child = spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command], {
         cwd: runtimeRoot(),
         detached: true,
         stdio: "ignore",
-        windowsHide: false,
+        windowsHide: true,
       });
     } else {
       child = spawn(executable, args, {
@@ -418,7 +422,11 @@ function launchBackend(options = {}) {
       });
     }
     child.unref();
-    return readState(options.initialize ? "已请求管理员权限，正在绑定并初始化游戏窗口。" : "已启动内置 AHK 执行器。");
+    return readState(options.initialize
+      ? "已请求管理员权限，正在绑定并初始化游戏窗口。"
+      : options.background
+        ? "F9 初始化热键执行器已启动。"
+        : "已启动内置 AHK 执行器。");
   } catch (error) {
     return readState("启动 AHK 执行器失败：" + error.message);
   }
@@ -496,6 +504,7 @@ app.whenReady().then(() => {
     return percent;
   });
   createWindow();
+  setTimeout(() => launchBackend({ background: true, elevated: true }), 500);
 });
 
 app.on("window-all-closed", () => {

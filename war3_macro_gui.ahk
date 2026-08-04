@@ -5,6 +5,7 @@
 ; Scope: manual hotkey-triggered sequences only. The configured stop key stops current sequence.
 
 CoordMode "Mouse", "Screen"
+CoordMode "ToolTip", "Screen"
 SetTitleMatchMode 2
 SendMode "Input"
 SetKeyDelay -1, -1
@@ -142,26 +143,21 @@ suppressDurationRefresh := false
 suppressFlowChange := false
 activeKeyCapture := ""
 keyCaptureMouseHotkeys := ["*XButton1", "*XButton2", "*MButton"]
-npcTapKey := ""
-npcTapDir := 0
-farmTapKey := ""
-farmTapDir := 0
+headlessMode := HasCommandLineArg("--background") || HasCommandLineArg("--initialize")
 
 ApplyTrayIcon()
 BuildDefaults()
 LoadConfig()
-BuildGui()
+if !headlessMode {
+    BuildGui()
+}
 ApplyFlowHotkeys()
 if HasCommandLineArg("--initialize") {
     SetTimer InitializeGameSession, -350
 }
 
-#HotIf IsMacroHotkeysActive()
-F5::HandleFarmSampleHotkey(-1)
-F6::HandleFarmSampleHotkey(1)
-F7::HandleNpcSampleHotkey(-1)
-F8::HandleNpcSampleHotkey(1)
-^F9::CopyActiveWindowInfo()
+#HotIf IsGameActive()
+F9::InitializeGameSession()
 ^!b::BindActiveWindowAsGame()
 #HotIf
 
@@ -786,7 +782,7 @@ BuildGui() {
         row["targetY"].OnEvent("Change", (*) => RefreshGroupDurationDisplay())
         farmRows[farmName] := row
     }
-    mainGui.AddText("x924 y92 w170", "F6采鼠标点目标")
+    mainGui.AddText("x924 y92 w170", "鼠标点目标")
     farmTargetDDL := mainGui.AddDropDownList("x924 y114 w190", farmNames)
     farmTargetDDL.Choose(1)
 
@@ -894,7 +890,7 @@ BuildGui() {
     }
     mainGui.AddText("x888 y410 w226 h72", "执行顺序固定为 ID 1 到 ID 8。公屏会快速执行 Enter -> 命令 -> Enter。")
     mainGui.AddGroupBox("x888 y486 w226 h170", "使用说明")
-    mainGui.AddText("x906 y512 w200 h132", "1. 动作占用由程序按当前ID自动计算。`n2. 等待ms可手动修改。`n3. 组合时长=动作占用+等待。`n4. F5/F6采鼠标点，F7/F8采NPC点。`n5. 自动施法需要开启平台内快捷施法。")
+    mainGui.AddText("x906 y512 w200 h132", "1. 动作占用由程序按当前ID自动计算。`n2. 等待ms可手动修改。`n3. 组合时长=动作占用+等待。`n4. 坐标通过面板按钮记录。`n5. 自动施法需要开启平台内快捷施法。")
 
     mainGui.AddGroupBox("x16 y676 w1128 h164", "三、NPC / 坐标 / 平台按键标定")
     mainGui.AddText("x34 y706 w70", "NPC")
@@ -912,7 +908,7 @@ BuildGui() {
     clearNpcBtn := mainGui.AddButton("x1038 y700 w86", "清空本区")
     clearNpcBtn.OnEvent("Click", ClearNpcSettings)
 
-    mainGui.AddText("x34 y744 w430", "NPC不再使用矩形，执行时直接点击这个点。F7/F8单按采样；双按F7上一个NPC，双按F8下一个NPC。")
+    mainGui.AddText("x34 y744 w430", "NPC不再使用矩形；需要屏幕点时使用“记录NPC点”按钮。")
     saveNpcBtn := mainGui.AddButton("x440 y738 w120", "保存NPC")
     saveNpcBtn.OnEvent("Click", SaveCurrentNpc)
     keyMapBtn := mainGui.AddButton("x580 y738 w150", "平台按键映射表")
@@ -922,7 +918,7 @@ BuildGui() {
     copyInfoBtn := mainGui.AddButton("x920 y738 w150", "复制当前窗口")
     copyInfoBtn.OnEvent("Click", CopyActiveWindowInfo)
 
-    mainGui.AddText("x34 y788 w1040", "建议：NPC点位标到菜单可点位置中心。F5/F6单按采技能鼠标点，双按F5/F6切换刷本项；NPC点击前自动按F1两次锁定人物视角。")
+    mainGui.AddText("x34 y788 w1040", "F9用于绑定并初始化本局；成功后自动按F1两次锁定人物视角。")
 
     mainGui.AddGroupBox("x16 y850 w1128 h88", "感谢支持")
     mainGui.AddText("x34 y874 w1090 h54", "1. 此软件由WosCat@月吟开发，感谢支持。有问题请联系作者微信 xu3071744684`n2. 大力感谢航哥@远航gh的支持，感谢航哥的测试`n3. 感谢橘子哥@橘子怪的支持`n4. 感谢比奇堡@兄弟们的支持")
@@ -1114,56 +1110,6 @@ CaptureFarmTarget(name, *) {
     farmRows[name]["targetY"].Text := y
     SaveConfig()
     SetStatus("已保存 " name " 的技能鼠标点：" x ", " y "。")
-}
-
-CaptureSelectedFarmTarget(*) {
-    global farmTargetDDL
-    try {
-        name := farmTargetDDL.Text
-    } catch {
-        SetStatus("F6采鼠标点失败：界面尚未加载。")
-        return
-    }
-    if name = "" {
-        SetStatus("F6采鼠标点失败：未选择刷本项。")
-        return
-    }
-    CaptureFarmTarget(name)
-}
-
-HandleFarmSampleHotkey(direction, *) {
-    global farmTapKey, farmTapDir
-    key := direction < 0 ? "F5" : "F6"
-    if farmTapKey = key {
-        farmTapKey := ""
-        SetTimer CommitFarmSampleHotkey, 0
-        SelectFarmTargetByOffset(direction)
-        return
-    }
-    farmTapKey := key
-    farmTapDir := direction
-    SetTimer CommitFarmSampleHotkey, -260
-}
-
-CommitFarmSampleHotkey(*) {
-    global farmTapKey
-    if farmTapKey = "" {
-        return
-    }
-    farmTapKey := ""
-    CaptureSelectedFarmTarget()
-}
-
-SelectFarmTargetByOffset(offset) {
-    global farmTargetDDL, farmNames
-    try idx := farmTargetDDL.Value
-    catch {
-        return
-    }
-    idx := WrapIndex(idx + offset, farmNames.Length)
-    farmTargetDDL.Choose(idx)
-    SetStatus("已切换技能鼠标点采样目标：" farmNames[idx] "。")
-    QuietTip("鼠标点目标：" farmNames[idx])
 }
 
 OnFlowChanged(*) {
@@ -1800,42 +1746,6 @@ CaptureNpcClickPoint(*) {
     QuietTip("NPC点 " x ", " y)
 }
 
-HandleNpcSampleHotkey(direction, *) {
-    global npcTapKey, npcTapDir
-    key := direction < 0 ? "F7" : "F8"
-    if npcTapKey = key {
-        npcTapKey := ""
-        SetTimer CommitNpcSampleHotkey, 0
-        SelectNpcByOffset(direction)
-        return
-    }
-    npcTapKey := key
-    npcTapDir := direction
-    SetTimer CommitNpcSampleHotkey, -260
-}
-
-CommitNpcSampleHotkey(*) {
-    global npcTapKey
-    if npcTapKey = "" {
-        return
-    }
-    npcTapKey := ""
-    CaptureNpcClickPoint()
-}
-
-SelectNpcByOffset(offset) {
-    global npcDDL, npcNames
-    try idx := npcDDL.Value
-    catch {
-        return
-    }
-    idx := WrapIndex(idx + offset, npcNames.Length)
-    npcDDL.Choose(idx)
-    LoadNpcToControls(npcNames[idx])
-    SetStatus("已切换NPC标定目标：" npcNames[idx] "。")
-    QuietTip("NPC目标：" npcNames[idx])
-}
-
 ShowKeyMapGui(*) {
     global mainGui, keyMap, itemSlotCount
 
@@ -2075,7 +1985,7 @@ DisableConfiguredHotkeyVariants() {
     global flows, flowCount, stopHotkey
     keys := []
     stopHk := NormalizeHotkey(stopHotkey)
-    if stopHk != "" {
+    if stopHk != "" && !IsReservedHotkey(stopHk) {
         keys.Push(stopHk)
     }
     Loop flowCount {
@@ -2083,7 +1993,7 @@ DisableConfiguredHotkeyVariants() {
         catch {
             hk := ""
         }
-        if hk != "" {
+        if hk != "" && !IsReservedHotkey(hk) {
             keys.Push(hk)
         }
     }
@@ -2923,10 +2833,19 @@ InitializeGameSession(*) {
         return false
     }
 
-    if !RefreshCameraSnapshot() {
-        message := "窗口和 Game.dll 已绑定；镜头偏移尚未通过当前版本校验，暂不执行世界坐标点击。"
+    if !LockHeroAndCamera() {
+        message := "窗口已绑定，但无法向游戏发送 F1 完成人物和镜头锁定。"
         WriteGameSession("bound", message, false)
         SetStatus(message)
+        ShowGameTip("初始化未完成`n无法锁定人物和镜头", 1800)
+        return false
+    }
+
+    if !RefreshCameraSnapshot() {
+        message := "本局初始化完成，人物及镜头已锁定；世界坐标投影仍待校准。"
+        WriteGameSession("ready", message, false)
+        SetStatus(message)
+        ShowGameTip("初始化已完成`n人物及镜头已锁定", 2200)
         return true
     }
 
@@ -2936,8 +2855,38 @@ InitializeGameSession(*) {
         : "本局已绑定；投影参数不完整，暂不执行世界坐标点击。"
     WriteGameSession("ready", message, gameSession["projectionReady"])
     SetStatus(message)
-    QuietTip(gameSession["projectionReady"] ? "本局初始化完成" : "已绑定，等待镜头校验", 1800)
+    ShowGameTip("初始化已完成`n人物及镜头已锁定", 2200)
     return gameSession["projectionReady"]
+}
+
+LockHeroAndCamera() {
+    global gameSession, defaultHeroSelectDelayMs, worldProjection
+    hwnd := gameSession["hwnd"]
+    if !hwnd || !WinExist("ahk_id " hwnd) {
+        return false
+    }
+
+    try {
+        if GetKeyState("F9", "P") {
+            KeyWait "F9", "T1"
+        }
+        WinActivate "ahk_id " hwnd
+        if !WinWaitActive("ahk_id " hwnd, , 1.5) {
+            return false
+        }
+    } catch {
+        return false
+    }
+
+    if !SendGameKey("F1", HeroSelectMinHoldMs()) {
+        return false
+    }
+    Sleep Max(35, defaultHeroSelectDelayMs)
+    if !SendGameKey("F1", HeroSelectMinHoldMs()) {
+        return false
+    }
+    Sleep Max(40, ToInt(worldProjection["f1SettleMs"], 40))
+    return true
 }
 
 GetBoundGameHwnd() {
@@ -2983,12 +2932,12 @@ FindRemoteModuleBase(pid, moduleName) {
         try {
             moduleBuffer := Buffer(A_PtrSize * 512, 0)
             needed := 0
-            if DllCall("Psapi\\EnumProcessModulesEx", "ptr", process, "ptr", moduleBuffer, "uint", moduleBuffer.Size, "uint*", &needed, "uint", 3) {
+            if DllCall("Psapi\EnumProcessModulesEx", "ptr", process, "ptr", moduleBuffer, "uint", moduleBuffer.Size, "uint*", &needed, "uint", 3) {
                 count := Floor(needed / A_PtrSize)
                 Loop count {
                     module := NumGet(moduleBuffer, (A_Index - 1) * A_PtrSize, "ptr")
                     nameBuffer := Buffer(520, 0)
-                    if !DllCall("Psapi\\GetModuleBaseNameW", "ptr", process, "ptr", module, "ptr", nameBuffer, "uint", 260) {
+                    if !DllCall("Psapi\GetModuleBaseNameW", "ptr", process, "ptr", module, "ptr", nameBuffer, "uint", 260) {
                         continue
                     }
                     currentName := StrGet(nameBuffer, "UTF-16")
@@ -2996,7 +2945,7 @@ FindRemoteModuleBase(pid, moduleName) {
                         continue
                     }
                     info := Buffer(A_PtrSize * 2 + 8, 0)
-                    if DllCall("Psapi\\GetModuleInformation", "ptr", process, "ptr", module, "ptr", info, "uint", info.Size) {
+                    if DllCall("Psapi\GetModuleInformation", "ptr", process, "ptr", module, "ptr", info, "uint", info.Size) {
                         return NumGet(info, 0, "ptr")
                     }
                 }
@@ -3007,14 +2956,14 @@ FindRemoteModuleBase(pid, moduleName) {
     }
     ; Psapi can reject a 32-bit target from a 64-bit caller. Toolhelp32 uses
     ; the target's MODULEENTRY32W layout and works for both architectures.
-    snapshot := DllCall("kernel32\\CreateToolhelp32Snapshot", "uint", 0x18, "uint", pid, "ptr")
+    snapshot := DllCall("kernel32\CreateToolhelp32Snapshot", "uint", 0x18, "uint", pid, "ptr")
     if !snapshot || snapshot = -1 {
         return 0
     }
     try {
         entry := Buffer(1080, 0)
         NumPut("uint", 1080, entry, 0)
-        if !DllCall("kernel32\\Module32FirstW", "ptr", snapshot, "ptr", entry) {
+        if !DllCall("kernel32\Module32FirstW", "ptr", snapshot, "ptr", entry) {
             return 0
         }
         loop {
@@ -3022,7 +2971,7 @@ FindRemoteModuleBase(pid, moduleName) {
             if StrLower(currentName) = StrLower(moduleName) {
                 return NumGet(entry, 24, "uint")
             }
-            if !DllCall("kernel32\\Module32NextW", "ptr", snapshot, "ptr", entry) {
+            if !DllCall("kernel32\Module32NextW", "ptr", snapshot, "ptr", entry) {
                 break
             }
             NumPut("uint", 1080, entry, 0)
@@ -3250,7 +3199,6 @@ BindWindowHwndAsGame(hwnd, source := "窗口") {
         try DllCall("CloseHandle", "ptr", gameSession["processHandle"])
         gameSession.Delete("processHandle")
     }
-    SaveConfig()
     SetStatus("已绑定游戏窗口(" source ")：" gameWindowMatcher " / PID " pid " / " WindowProcessLabel(exe) " / " title " / " className "。")
     QuietTip("已绑定游戏窗口", 1200)
     return true
@@ -3278,7 +3226,7 @@ FindAndBindGameWindow(*) {
             }
         }
     }
-    SetStatus("绑定失败：没找到游戏窗口。新机器请在游戏画面按 Ctrl+Alt+B，或 Ctrl+F9 复制窗口信息发我。")
+    SetStatus("绑定失败：没找到游戏窗口。请确认 War3 已启动并进入游戏画面。")
     QuietTip("未找到游戏窗口", 1200)
     return false
 }
@@ -3381,7 +3329,7 @@ ProcessNameFromPID(pid) {
 
 IsReservedHotkey(hk) {
     normalized := StrUpper(NormalizeKey(hk))
-    return normalized = "F5" || normalized = "F6" || normalized = "F7" || normalized = "F8" || normalized = "ESC"
+    return normalized = "F9" || normalized = "ESC"
 }
 
 IsTeleportKey(key) {
@@ -3410,6 +3358,22 @@ UpdateCurrentProfileLabel() {
 QuietTip(text, ms := 900) {
     ToolTip text
     SetTimer () => ToolTip(), -ms
+}
+
+ShowGameTip(text, ms := 1800) {
+    global gameSession
+    left := ToInt(gameSession["clientLeft"], 0)
+    top := ToInt(gameSession["clientTop"], 0)
+    width := Max(1, ToInt(gameSession["clientWidth"], 1))
+    height := Max(1, ToInt(gameSession["clientHeight"], 1))
+    x := left + Max(16, Round(width / 2) - 110)
+    y := top + Max(16, Round(height * 0.08))
+    ToolTip text, x, y, 2
+    SetTimer HideGameTip, -ms
+}
+
+HideGameTip(*) {
+    ToolTip "", 0, 0, 2
 }
 
 ToInt(value, defaultValue := 0) {

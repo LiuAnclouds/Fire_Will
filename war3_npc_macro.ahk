@@ -25,12 +25,9 @@ gameMatchers := [
 ; -----------------------------
 ; Jiban 1 challenge config
 ; -----------------------------
-; In Warcraft, save camera locations first:
-;   1. Move camera to the home "challenge self" NPC, press Ctrl+F5.
-;   2. Move camera to the Mount Myoboku NPC, press Ctrl+F6.
-; Then use F10 to capture the NPC and button positions below.
-homeCameraKey := "F5"
-miaomuCameraKey := "F6"
+; The current application no longer reserves Warcraft camera-save keys.
+homeCameraKey := ""
+miaomuCameraKey := ""
 cameraDelayMs := 180
 menuDelayMs := 140
 betweenChallengeDelayMs := 220
@@ -54,13 +51,6 @@ miaomuChallengeSteps := [
 ; -----------------------------
 ; F12: enable / disable all action macros.
 F12::ToggleEnabled()
-
-; F10: capture current mouse position and copy it to clipboard.
-; Put the cursor over an NPC/button, press F10, then paste the result here.
-F10::CaptureMousePosition()
-
-; F9: copy active window info. Useful when the macro does not detect the game.
-F9::CopyActiveWindowInfo()
 
 #HotIf IsGameActive()
 

@@ -35,7 +35,7 @@
           <aside class="farm-side">
             <button id="clear-farm" type="button">清空刷本设置</button>
             <button id="open-keymap-top" type="button">平台按键映射表</button>
-            <label>F6 采鼠标点目标</label>
+            <label>鼠标点目标</label>
             <select id="farm-target"></select>
           </aside>
         </div>
@@ -74,7 +74,7 @@
               <p>1. 动作占用由程序按当前 ID 自动计算。</p>
               <p>2. 等待 ms 可手动修改。</p>
               <p>3. 组合时长 = 动作占用 + 等待。</p>
-              <p>4. F5/F6 采鼠标点，F7/F8 采 NPC 点。</p>
+              <p>4. 坐标通过面板中的记录按钮采集。</p>
               <p>5. 自动施法需要开启平台内快捷施法。</p>
             </fieldset>
           </aside>
@@ -94,10 +94,10 @@
           <p>NPC 使用地图世界坐标；F1 两次锁定人物视角后换算为当前客户区坐标。</p>
           <button id="save-npc" type="button">保存 NPC</button>
           <button id="open-keymap-npc" type="button">平台按键映射表</button>
-          <button id="initialize-game" type="button">绑定游戏窗口并初始化</button>
+          <button id="initialize-game" type="button">绑定并初始化（F9）</button>
           <span id="game-session-state" class="session-state" role="status">未初始化</span>
         </div>
-        <p class="wide-note">首次进入本局请点“绑定游戏窗口并初始化”。初始化只做一次窗口、客户区、DPI、Game.dll 和 NPC 世界坐标索引；执行每个 NPC 前会按 F1 两次锁定人物视角，再将世界坐标投影为当前客户区坐标并做吸附。</p>
+        <p class="wide-note">进入地图后按 F9 或点击初始化按钮。成功后会自动按 F1 两次锁定人物视角并在游戏内提示；本局后续直接使用缓存参数。</p>
       </fieldset>
 
       <fieldset class="legacy-panel credits-panel">

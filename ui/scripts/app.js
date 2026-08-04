@@ -371,3 +371,12 @@ async function initialize() {
 }
 
 initialize();
+
+window.setInterval(async () => {
+  if (!window.fireWill) return;
+  try {
+    renderGameSession(await window.fireWill.getGameSession());
+  } catch {
+    // The next poll will refresh the state after a transient IPC failure.
+  }
+}, 1000);
