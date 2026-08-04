@@ -105,6 +105,14 @@ button:hover {
   white-space: nowrap;
 }
 
+.session-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .legacy-panel,
 .timing-panel,
 .flow-side fieldset,
@@ -129,9 +137,7 @@ legend {
 }
 
 .panel-toolbar,
-.flow-settings,
-.npc-settings,
-.npc-actions {
+.flow-settings {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -220,8 +226,6 @@ legend {
 
 .farm-side label,
 .flow-side p,
-.npc-actions p,
-.wide-note,
 .credits-panel p,
 .keymap-form p,
 .timing-note {
@@ -421,41 +425,6 @@ select option {
 
 .flow-side fieldset p:last-child {
   margin-bottom: 0;
-}
-
-.npc-settings {
-  flex-wrap: wrap;
-  align-items: end;
-}
-
-.npc-settings > label:first-child {
-  width: 190px;
-  display: grid;
-  gap: 2px;
-}
-
-.npc-settings > label:nth-of-type(2) {
-  width: 230px;
-  display: grid;
-  gap: 2px;
-}
-
-.dual-input {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px;
-}
-
-.npc-actions {
-  margin-top: 8px;
-}
-
-.npc-actions p {
-  flex: 1;
-}
-
-.wide-note {
-  margin-top: 8px;
 }
 
 .credits-panel {

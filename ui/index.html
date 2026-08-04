@@ -12,8 +12,12 @@
 
     <main class="ahk-shell">
       <header class="legacy-intro">
-        <p>原则：NPC 菜单、技能、装备都用按键；NPC 使用地图世界坐标投影到当前游戏客户区，技能/装备仍按原有映射执行。</p>
-        <strong>当前配置英雄：<span id="current-profile">读取中</span></strong>
+        <p>NPC 菜单、技能和装备均按当前配置执行。</p>
+        <div class="session-controls">
+          <strong>当前配置英雄：<span id="current-profile">读取中</span></strong>
+          <button id="initialize-game" type="button">绑定并初始化（F9）</button>
+          <span id="game-session-state" class="session-state" role="status">未初始化</span>
+        </div>
       </header>
 
       <fieldset class="legacy-panel farm-panel">
@@ -74,30 +78,11 @@
               <p>1. 动作占用由程序按当前 ID 自动计算。</p>
               <p>2. 等待 ms 可手动修改。</p>
               <p>3. 组合时长 = 动作占用 + 等待。</p>
-              <p>4. 坐标通过面板中的记录按钮采集。</p>
+              <p>4. NPC 点位由程序内置配置读取。</p>
               <p>5. 自动施法需要开启平台内快捷施法。</p>
             </fieldset>
           </aside>
         </div>
-      </fieldset>
-
-      <fieldset class="legacy-panel npc-panel">
-        <legend>三、NPC / 坐标 / 平台按键标定</legend>
-        <div class="npc-settings">
-          <label>NPC<select id="npc-select"></select></label>
-          <span class="hint">NPC 点击前自动按 F1 两次锁定人物视角</span>
-          <label>世界坐标 X/Y <span class="dual-input"><input id="npc-x" type="text" /><input id="npc-y" type="text" /></span></label>
-          <label class="check-label"><input id="skip-game-check" type="checkbox" />跳过窗口检测</label>
-          <button id="clear-npc" type="button">清空本区</button>
-        </div>
-        <div class="npc-actions">
-          <p>NPC 使用地图世界坐标；F1 两次锁定人物视角后换算为当前客户区坐标。</p>
-          <button id="save-npc" type="button">保存 NPC</button>
-          <button id="open-keymap-npc" type="button">平台按键映射表</button>
-          <button id="initialize-game" type="button">绑定并初始化（F9）</button>
-          <span id="game-session-state" class="session-state" role="status">未初始化</span>
-        </div>
-        <p class="wide-note">进入地图后按 F9 或点击初始化按钮。成功后会自动按 F1 两次锁定人物视角并在游戏内提示；本局后续直接使用缓存参数。</p>
       </fieldset>
 
       <fieldset class="legacy-panel credits-panel">

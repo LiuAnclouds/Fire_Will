@@ -1,7 +1,6 @@
 const state = {
   project: null,
   selectedFlow: 1,
-  selectedNpc: 0,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -47,13 +46,10 @@ function render(project) {
   state.project = project;
   $("current-profile").textContent = project.profileName || "默认/未读取";
   $("stop-hotkey").value = project.stopHotkey || "Z";
-  $("skip-game-check").checked = Boolean(project.skipGameCheck);
   renderFarmRows(project);
   renderFarmTarget(project);
   renderFlowSelector(project);
   renderFlow(project);
-  renderNpcSelector(project);
-  renderNpc(project);
   renderGameSession(project.gameSession);
   setStatus(project.toast || "已加载配置。布局字段对应旧版 AHK 配置器。");
 }
@@ -165,21 +161,6 @@ function updateUsedDuration(row) {
   row.querySelector('[data-field="used"]').value = Math.max(0, duration - wait);
 }
 
-function renderNpcSelector(project) {
-  $("npc-select").innerHTML = project.npcs.map((npc, index) => (
-    `<option value="${index}">${escapeHtml(npc.name)}</option>`
-  )).join("");
-  $("npc-select").value = String(state.selectedNpc);
-}
-
-function renderNpc(project) {
-  const npc = project.npcs[state.selectedNpc] || project.npcs[0];
-  if (!npc) return;
-  $("npc-select").value = String(state.selectedNpc);
-  $("npc-x").value = npc.worldX || "";
-  $("npc-y").value = npc.worldY || "";
-}
-
 function syncFlowToState() {
   const flow = state.project?.flows.find((item) => item.slot === state.selectedFlow);
   if (!flow) return;
@@ -199,16 +180,8 @@ function syncFlowToState() {
   }));
 }
 
-function syncNpcToState() {
-  const npc = state.project?.npcs[state.selectedNpc];
-  if (!npc) return;
-  npc.worldX = $("npc-x").value.trim();
-  npc.worldY = $("npc-y").value.trim();
-}
-
 function collectLayout() {
   syncFlowToState();
-  syncNpcToState();
   const farms = Array.from(document.querySelectorAll("[data-farm]")).map((row) => ({
     name: row.dataset.farm,
     actionKey: row.querySelector('[data-field="actionKey"]').value.trim(),
@@ -219,9 +192,7 @@ function collectLayout() {
   }));
   return {
     stopHotkey: $("stop-hotkey").value.trim() || "Z",
-    skipGameCheck: $("skip-game-check").checked,
     farms,
-    npcs: state.project.npcs,
     flows: state.project.flows,
   };
 }
@@ -253,12 +224,6 @@ function clearCurrentFlow() {
   setStatus("已清空当前流程字段，保存后写入配置。");
 }
 
-function clearNpcSettings() {
-  $("npc-x").value = "";
-  $("npc-y").value = "";
-  setStatus("已清空当前 NPC 坐标，保存后写入配置。");
-}
-
 function bindLegacyActions() {
   document.querySelectorAll("[data-legacy]").forEach((button) => {
     button.addEventListener("click", async () => {
@@ -272,7 +237,7 @@ async function initializeGameSession() {
   if (!window.fireWill) return;
   const result = await window.fireWill.initializeGameSession();
   render(result);
-  setStatus("已请求管理员权限。请在 UAC 中允许 AHK 读取游戏窗口；等待本局初始化完成。");
+  setStatus("正在绑定游戏窗口并初始化本局。");
 
   let attempts = 0;
   const poll = async () => {
@@ -280,7 +245,7 @@ async function initializeGameSession() {
     const session = await window.fireWill.getGameSession();
     renderGameSession(session);
     if (session.ready || attempts >= 20) {
-      setStatus(session.message || (session.ready ? "本局游戏已初始化。" : "初始化未完成，请检查游戏窗口和管理员权限。"));
+      setStatus(session.message || (session.ready ? "本局游戏已初始化。" : "初始化未完成，请检查游戏是否已进入地图。"));
       return;
     }
     window.setTimeout(poll, 500);
@@ -326,19 +291,10 @@ $("flow-select").addEventListener("change", () => {
   renderFlow(state.project);
 });
 
-$("npc-select").addEventListener("change", () => {
-  syncNpcToState();
-  state.selectedNpc = Number($("npc-select").value);
-  renderNpc(state.project);
-});
-
 $("save-profile").addEventListener("click", saveLayout);
-$("save-npc").addEventListener("click", saveLayout);
 $("clear-farm").addEventListener("click", clearFarmSettings);
 $("clear-flow").addEventListener("click", clearCurrentFlow);
-$("clear-npc").addEventListener("click", clearNpcSettings);
 $("open-keymap-top").addEventListener("click", openKeymap);
-$("open-keymap-npc").addEventListener("click", openKeymap);
 $("save-keymap").addEventListener("click", saveKeymap);
 $("stop-flow").addEventListener("click", () => setStatus("停止热键仍由内置 AHK 执行器接管。"));
 $("initialize-game").addEventListener("click", initializeGameSession);

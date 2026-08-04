@@ -14,22 +14,6 @@ const farmNames = [
   "尾兽处追捕逃忍",
 ];
 
-const npcNames = [
-  "妙木山大蛤蟆",
-  "妙木山挑战自我NPC",
-  "家里挑战自我NPC",
-  "家里追捕逃忍NPC",
-  "尾兽处追捕逃忍NPC",
-];
-
-const npcWorldDefaults = {
-  "妙木山大蛤蟆": { worldX: -5056, worldY: 2368, npcId: "n012-01" },
-  "妙木山挑战自我NPC": { worldX: 3968, worldY: 3520, npcId: "n00A-01" },
-  "家里挑战自我NPC": { worldX: -4416, worldY: 1792, npcId: "n011-01" },
-  "家里追捕逃忍NPC": { worldX: -2432, worldY: -3648, npcId: "n01E-01" },
-  "尾兽处追捕逃忍NPC": { worldX: 3520, worldY: 4480, npcId: "n01E-02" },
-};
-
 const releaseTypeOptions = ["无", "技能按键", "装备按键", "技能槽位", "装备槽位"];
 const preTypeOptions = ["无", "按键", "公屏"];
 
@@ -125,17 +109,7 @@ function readGameSession() {
     ready: session.ready === "1",
     state: session.state || "未初始化",
     message: session.message || "请先绑定并初始化游戏窗口。",
-    pid: intValue(session.pid, 0),
-    hwnd: intValue(session.hwnd, 0),
-    clientLeft: intValue(session.clientLeft, 0),
-    clientTop: intValue(session.clientTop, 0),
-    clientWidth: intValue(session.clientWidth, 0),
-    clientHeight: intValue(session.clientHeight, 0),
-    dpi: intValue(session.dpi, 96),
-    moduleBase: session.moduleBase || "",
-    moduleName: session.moduleName || "",
     projectionReady: session.projectionReady === "1",
-    updatedAt: session.updatedAt || "",
   };
 }
 
@@ -149,15 +123,6 @@ function readState(toast = "") {
         .sort((a, b) => a.localeCompare(b, "zh-CN"))
     : [];
 
-  const npcs = npcNames.map((name) => {
-    const defaults = npcWorldDefaults[name];
-    return {
-      name,
-      worldX: iniGet(ini, "NPC." + name, "worldX", String(defaults.worldX)),
-      worldY: iniGet(ini, "NPC." + name, "worldY", String(defaults.worldY)),
-      npcId: iniGet(ini, "NPC." + name, "npcId", defaults.npcId),
-    };
-  });
   const flows = Array.from({ length: 8 }, (_, index) => {
     const slot = index + 1;
     const section = "Flow." + slot;
@@ -204,11 +169,8 @@ function readState(toast = "") {
     gameSession: readGameSession(),
     profileName: iniGet(ini, "General", "currentProfileName", "默认/未读取"),
     stopHotkey: iniGet(ini, "General", "stopHotkey", "Z"),
-    gameWindowMatcher: iniGet(ini, "General", "gameWindowMatcher"),
-    skipGameCheck: iniGet(ini, "General", "skipGameCheck", "0") === "1",
     profiles,
-    options: { farmNames, npcNames, releaseTypeOptions, preTypeOptions },
-    npcs,
+    options: { farmNames, releaseTypeOptions, preTypeOptions },
     farms: farmNames.map((name) => ({
       name,
       actionKey: iniGet(ini, "Farm." + name, "actionKey"),
@@ -233,7 +195,6 @@ function readState(toast = "") {
     },
     flows,
     checks: {
-      missingNpc: npcs.filter((npc) => npc.worldX === "" || npc.worldY === "").length,
       mappedSkills: Array.from({ length: 12 }, (_, index) => iniGet(ini, "KeyMap", "skill" + (index + 1))).filter(Boolean).length,
       mappedItems: Array.from({ length: 6 }, (_, index) => iniGet(ini, "KeyMap", "item" + (index + 1))).filter(Boolean).length,
       enabledFlows: Array.from({ length: 8 }, (_, index) => iniGet(ini, "Flow." + (index + 1), "enabled", "0") === "1").filter(Boolean).length,
@@ -245,7 +206,6 @@ function saveLayout(payload) {
   const updates = {
     General: {
       stopHotkey: String(payload.stopHotkey || "Z"),
-      skipGameCheck: payload.skipGameCheck ? "1" : "0",
     },
   };
 
@@ -257,15 +217,6 @@ function saveLayout(payload) {
       releaseKey: String(farm.releaseKey || ""),
       targetX: String(farm.targetX || ""),
       targetY: String(farm.targetY || ""),
-    };
-  }
-
-  for (const npc of payload.npcs || []) {
-    if (!npcNames.includes(npc.name)) continue;
-    updates["NPC." + npc.name] = {
-      worldX: String(npc.worldX || ""),
-      worldY: String(npc.worldY || ""),
-      npcId: String(npc.npcId || ""),
     };
   }
 
