@@ -59,7 +59,7 @@ public static class FireWillCooldownProbe
     {
         if ((protect & 0x100) != 0 || (protect & 0x01) != 0) return false;
         uint basic = protect & 0xff;
-        return basic == 0x02 || basic == 0x04 || basic == 0x08 || basic == 0x20 || basic == 0x40 || basic == 0x80;
+        return basic == 0x04 || basic == 0x08;
     }
 
     static Dictionary<long, Tuple<float, uint, uint>> Capture(IntPtr process)
@@ -77,7 +77,10 @@ public static class FireWillCooldownProbe
             long start = info.BaseAddress.ToInt64();
             long size = unchecked((long)info.RegionSize.ToUInt64());
             long next = start + Math.Max(size, 0x1000);
-            if (info.State == 0x1000 && IsReadable(info.Protect) && size > 0)
+            // Runtime CAbility/command-card objects live in committed private
+            // writable heaps. Excluding executable/image mappings makes each
+            // pass fast enough for live cooldown sampling.
+            if (info.State == 0x1000 && info.Type == 0x20000 && IsReadable(info.Protect) && size > 0)
             {
                 for (long offset = 0; offset < size; offset += chunkSize)
                 {
