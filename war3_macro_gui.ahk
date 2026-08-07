@@ -145,12 +145,17 @@ suppressFlowChange := false
 activeKeyCapture := ""
 keyCaptureMouseHotkeys := ["*XButton1", "*XButton2", "*MButton"]
 headlessMode := HasCommandLineArg("--background") || HasCommandLineArg("--initialize")
+configSnapshot := ""
+configReloading := false
 
 ApplyTrayIcon()
 BuildDefaults()
 LoadConfig()
+configSnapshot := ReadConfigSnapshot()
 if !headlessMode {
     BuildGui()
+} else {
+    SetTimer PollConfigChanges, 250
 }
 ApplyFlowHotkeys()
 if HasCommandLineArg("--initialize") {
@@ -428,6 +433,44 @@ LoadConfig() {
     }
     Loop itemSlotCount {
         keyMap["item" A_Index] := NormalizeKey(IniRead(configPath, "KeyMap", "item" A_Index, keyMap["item" A_Index]))
+    }
+}
+
+ReadConfigSnapshot() {
+    global configPath
+    try {
+        return FileRead(configPath)
+    } catch {
+        return ""
+    }
+}
+
+PollConfigChanges(*) {
+    ReloadConfigIfChanged()
+}
+
+ReloadConfigIfChanged() {
+    global headlessMode, isRunning, configSnapshot, configReloading
+    if !headlessMode || isRunning || configReloading {
+        return false
+    }
+
+    snapshot := ReadConfigSnapshot()
+    if snapshot = configSnapshot {
+        return false
+    }
+
+    configReloading := true
+    try {
+        LoadConfig()
+        configSnapshot := ReadConfigSnapshot()
+        ApplyFlowHotkeys()
+        return true
+    } catch as err {
+        SetStatus("后台重载配置失败：" err.Message "。")
+        return false
+    } finally {
+        configReloading := false
     }
 }
 
@@ -2102,16 +2145,20 @@ StripHotkeyRuntimeDecorators(hk) {
 }
 
 ExecuteFlow(slot, *) {
-    global flows, isRunning, stopRequested, globalEnabled, runWarning, currentFlowSlot
+    global flows, isRunning, stopRequested, globalEnabled, runWarning, currentFlowSlot, headlessMode
     global activeKeyDelayMs, activeSkillKeyDelayMs, activeHeroSelectDelayMs, activeNpcClickDelayMs, activeChatDelayMs, activeTeleportKeyDelayMs, activeMouseMoveDelayMs, activeReleaseMouseMoveDelayMs, currentActionElapsedMs
 
+    if headlessMode {
+        ReloadConfigIfChanged()
+    } else {
+        SaveAllFarmRows()
+        SaveCurrentNpcToMemory()
+        SaveCurrentFlowToMemory(currentFlowSlot, false, false)
+    }
     if !CanStartRun() {
         return
     }
 
-    SaveAllFarmRows()
-    SaveCurrentNpcToMemory()
-    SaveCurrentFlowToMemory(currentFlowSlot, false, false)
     flow := flows[slot]
     activeKeyDelayMs := flow["keyDelay"]
     activeSkillKeyDelayMs := flow["skillKeyDelay"]
@@ -2124,6 +2171,7 @@ ExecuteFlow(slot, *) {
     isRunning := true
     stopRequested := false
     runWarning := ""
+    flowFailed := false
     SetStatus("正在执行流程：" flow["name"] "。")
 
     try {
@@ -2135,12 +2183,16 @@ ExecuteFlow(slot, *) {
                 continue
             }
             currentActionElapsedMs := 0
-            ExecutePreCommand(g)
+            if !ExecutePreCommand(g) {
+                flowFailed := true
+                break
+            }
             if stopRequested {
                 break
             }
-            if g["farm"] != "无" {
-                ExecuteFarmStep(g["farm"])
+            if g["farm"] != "无" && !ExecuteFarmStep(g["farm"]) {
+                flowFailed := true
+                break
             }
             used := currentActionElapsedMs
             SleepInterrupt(GetGroupWait(slot, idx, used))
@@ -2149,6 +2201,8 @@ ExecuteFlow(slot, *) {
         isRunning := false
         if stopRequested {
             SetStatus("流程已停止。")
+        } else if flowFailed {
+            SetStatus("流程已中止：当前步骤执行失败，请检查本局初始化和该步骤配置。")
         } else if runWarning != "" {
             SetStatus("流程执行完成，但有警告：" runWarning)
         } else {
@@ -2161,14 +2215,17 @@ ExecutePreCommand(g) {
     switch g["preType"] {
         case "按键":
             sentKey := SendKey(g["preValue"])
-            if sentKey != "" {
-                KeyDelayFor(sentKey)
+            if sentKey = "" {
+                return false
             }
+            KeyDelayFor(sentKey)
         case "公屏":
-            if SendChat(g["preValue"]) {
-                ChatDelay()
+            if !SendChat(g["preValue"]) {
+                return false
             }
+            ChatDelay()
     }
+    return true
 }
 
 ExecuteFarm(name) {
@@ -2195,13 +2252,16 @@ ExecuteFarm(name) {
     isRunning := true
     stopRequested := false
     runWarning := ""
+    farmSucceeded := false
     SetStatus("正在执行刷本项：" name "。")
     try {
-        ExecuteFarmStep(name)
+        farmSucceeded := ExecuteFarmStep(name)
     } finally {
         isRunning := false
         if stopRequested {
             SetStatus("刷本项已停止。")
+        } else if !farmSucceeded {
+            SetStatus("刷本项已中止：请检查本局初始化和该项配置。")
         } else if runWarning != "" {
             SetStatus("刷本项执行完成，但有警告：" runWarning)
         } else {
@@ -2219,8 +2279,7 @@ ExecuteFarmStep(name) {
     }
     meta := farmMeta[name]
     if ExecuteNpcAction(meta["npc"], meta["action"], farms[name]["actionKey"]) {
-        ExecuteFarmRelease(name)
-        return true
+        return ExecuteFarmRelease(name)
     }
     return false
 }
@@ -2237,6 +2296,9 @@ ExecuteNpcAction(npcName, action, commandKey) {
                 return false
             }
             sentKey := SendKey(commandKey)
+            if sentKey = "" {
+                return false
+            }
             KeyDelayFor(sentKey)
         case "只点击NPC":
             return true
@@ -2287,23 +2349,25 @@ ExecuteFarmRelease(name) {
     farm["releaseType"] := NormalizeReleaseType(farm["releaseType"])
 
     if farm["releaseType"] = "无" {
-        return
+        return true
     }
 
     key := ResolveReleaseKey(farm)
     if key = "" {
         SetStatus(GetReleaseKeyError(name, farm))
-        return
+        return false
     }
 
     if !IsPointConfigured(farm["targetX"], farm["targetY"]) {
         SetStatus("刷本项已配置自动释放，但未标定技能鼠标点：" name "。")
-        return
+        return false
     }
-    SelectHeroForRelease()
+    if !SelectHeroForRelease() {
+        return false
+    }
     MouseMove Integer(farm["targetX"]), Integer(farm["targetY"]), 0
     ReleaseMouseMoveDelay()
-    SendReleaseKey(key)
+    return SendReleaseKey(key) != ""
 }
 
 KeyDelay() {
@@ -2327,11 +2391,17 @@ SkillKeyDelayFor(key) {
 
 SelectHeroForRelease() {
     global activeHeroSelectDelayMs, cameraLocked
-    SendTimedGameKey("F1", activeHeroSelectDelayMs, HeroSelectMinHoldMs(), 80)
+    cameraLocked := false
+    if !SendTimedGameKey("F1", activeHeroSelectDelayMs, HeroSelectMinHoldMs(), 80) {
+        return false
+    }
     ActionDelayMs(HeroCameraLockGapMs())
-    SendTimedGameKey("F1", activeHeroSelectDelayMs, HeroSelectMinHoldMs(), 80)
+    if !SendTimedGameKey("F1", activeHeroSelectDelayMs, HeroSelectMinHoldMs(), 80) {
+        return false
+    }
     ActionDelayMs(HeroCameraSettleDurationMs())
     cameraLocked := true
+    return true
 }
 
 HeroSelectDelay() {
@@ -2596,8 +2666,15 @@ GameLeftClick() {
         SendEvent "{LButton down}"
         ActionDelayMs(NpcClickHoldDurationMs())
         SendEvent "{LButton up}"
+        return true
     } catch {
-        Click "Left"
+        try {
+            Click "Left"
+            return true
+        } catch as err {
+            SetRunWarning("发送鼠标点击失败：" err.Message)
+            return false
+        }
     }
 }
 
@@ -2872,7 +2949,7 @@ InitializeGameSession(*) {
     gameSession["dpi"] := metrics["dpi"]
     gameSession["gameBase"] := FindRemoteModuleBase(pid, "Game.dll")
     gameSession["gameModuleName"] := gameSession["gameBase"] ? "Game.dll" : ""
-    gameSession["ready"] := true
+    gameSession["ready"] := false
     gameSession["projectionReady"] := false
 
     if !gameSession["gameBase"] {
@@ -2890,22 +2967,29 @@ InitializeGameSession(*) {
         return false
     }
 
-    if !RefreshCameraSnapshot() {
-        message := "本局初始化完成，人物及镜头已锁定；世界坐标投影仍待校准。"
-        WriteGameSession("ready", message, false)
+    if !IsProjectionConfigured() {
+        message := "本局初始化未完成：世界坐标投影参数不完整。"
+        WriteGameSession("bound", message, false)
         SetStatus(message)
-        ShowGameTip("初始化已完成`n人物及镜头已锁定", 2200)
-        return true
+        ShowGameTip("初始化未完成`n投影参数不完整", 2200)
+        return false
     }
 
-    gameSession["projectionReady"] := IsProjectionConfigured()
-    message := gameSession["projectionReady"]
-        ? "本局初始化完成：窗口、客户区、DPI、Game.dll 和镜头投影均可用。"
-        : "本局已绑定；投影参数不完整，暂不执行世界坐标点击。"
-    WriteGameSession("ready", message, gameSession["projectionReady"])
+    if !RefreshCameraSnapshot() {
+        message := "本局初始化未完成：无法读取当前镜头参数。请确认权限和地图版本。"
+        WriteGameSession("bound", message, false)
+        SetStatus(message)
+        ShowGameTip("初始化未完成`n无法读取镜头参数", 2200)
+        return false
+    }
+
+    gameSession["ready"] := true
+    gameSession["projectionReady"] := true
+    message := "本局初始化完成：窗口、客户区、DPI、Game.dll 和镜头投影均可用。"
+    WriteGameSession("ready", message, true)
     SetStatus(message)
     ShowGameTip("初始化已完成`n人物及镜头已锁定", 2200)
-    return gameSession["projectionReady"]
+    return true
 }
 
 LockHeroAndCamera() {
@@ -2975,6 +3059,47 @@ ReadGameClientMetrics(hwnd) {
     result["dpi"] := 96
     try result["dpi"] := DllCall("GetDpiForWindow", "ptr", hwnd, "uint")
     return result
+}
+
+RefreshBoundWindowState() {
+    global gameSession
+    hwnd := gameSession["hwnd"]
+    if !hwnd || !WinExist("ahk_id " hwnd) {
+        InvalidateGameSession("游戏窗口已关闭或句柄已失效，请重新按 F9 初始化。")
+        return false
+    }
+
+    pid := GetWindowPid(hwnd)
+    if !pid || pid != gameSession["pid"] {
+        InvalidateGameSession("War3 进程已变化，请重新按 F9 初始化。")
+        return false
+    }
+
+    metrics := ReadGameClientMetrics(hwnd)
+    if !metrics.Has("width") || metrics["width"] <= 0 || metrics["height"] <= 0 {
+        InvalidateGameSession("无法读取当前游戏客户区，请重新按 F9 初始化。")
+        return false
+    }
+
+    gameSession["clientLeft"] := metrics["left"]
+    gameSession["clientTop"] := metrics["top"]
+    gameSession["clientWidth"] := metrics["width"]
+    gameSession["clientHeight"] := metrics["height"]
+    gameSession["dpi"] := metrics["dpi"]
+    return true
+}
+
+InvalidateGameSession(message) {
+    global gameSession, cameraLocked
+    gameSession["ready"] := false
+    gameSession["projectionReady"] := false
+    cameraLocked := false
+    if gameSession.Has("processHandle") && gameSession["processHandle"] {
+        try DllCall("CloseHandle", "ptr", gameSession["processHandle"])
+        gameSession.Delete("processHandle")
+    }
+    WriteGameSession("error", message, false)
+    SetStatus(message)
 }
 
 FindRemoteModuleBase(pid, moduleName) {
@@ -3154,6 +3279,9 @@ ClickWorldNpc(npcName) {
         SetStatus("本局尚未初始化，请先点“绑定游戏窗口并初始化”。")
         return false
     }
+    if !RefreshBoundWindowState() {
+        return false
+    }
     if !npcs.Has(npcName) || npcs[npcName]["worldX"] = "" || npcs[npcName]["worldY"] = "" {
         SetStatus("NPC没有世界坐标配置：" npcName "。")
         return false
@@ -3161,9 +3289,13 @@ ClickWorldNpc(npcName) {
     ; F9 and F2/F3 already lock the hero camera. Only use the old two-F1
     ; recovery path when that lock was not established for this session.
     if !cameraLocked {
-        SendTimedGameKey("F1", activeHeroSelectDelayMs, HeroSelectMinHoldMs(), 80)
+        if !SendTimedGameKey("F1", activeHeroSelectDelayMs, HeroSelectMinHoldMs(), 80) {
+            return false
+        }
         ActionDelayMs(HeroCameraLockGapMs())
-        SendTimedGameKey("F1", activeHeroSelectDelayMs, HeroSelectMinHoldMs(), 80)
+        if !SendTimedGameKey("F1", activeHeroSelectDelayMs, HeroSelectMinHoldMs(), 80) {
+            return false
+        }
         ActionDelayMs(HeroCameraSettleDurationMs())
         cameraLocked := true
     }
@@ -3181,7 +3313,9 @@ ClickWorldNpc(npcName) {
     screenY := gameSession["clientTop"] + clientY
     MouseMove screenX, screenY, 0
     MouseMoveDelay()
-    GameLeftClick()
+    if !GameLeftClick() {
+        return false
+    }
     NpcClickDelay()
     return true
 }

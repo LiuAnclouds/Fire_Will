@@ -3,6 +3,8 @@ const state = {
   selectedFlow: 1,
 };
 
+let cancelActiveCapture = null;
+
 const $ = (id) => document.getElementById(id);
 
 function setStatus(text) {
@@ -102,7 +104,7 @@ const delayFields = [
   ["mouse", "NPC移鼠耗时"],
   ["releaseMouse", "技能移鼠耗时"],
   ["chat", "公屏耗时"],
-  ["heroSelect", "F1耗时"],
+  ["heroSelect", "F1按住（最少50）"],
 ];
 
 function renderDelayGrid(flow) {
@@ -226,11 +228,129 @@ function clearCurrentFlow() {
 
 function bindLegacyActions() {
   document.querySelectorAll("[data-legacy]").forEach((button) => {
-    button.addEventListener("click", async () => {
-      setStatus(`${button.dataset.legacy} 采集仍由内置 AHK 执行器处理。`);
-      if (window.fireWill) await window.fireWill.launchBackend();
+    if (button.dataset.captureBound === "1") return;
+    button.dataset.captureBound = "1";
+    button.addEventListener("click", () => {
+      if (button.classList.contains("point-capture")) {
+        captureCursorPoint(button);
+        return;
+      }
+      const container = button.closest(".capture-field, .capture-group, .key-map-row");
+      const input = container?.querySelector("input");
+      if (input) beginKeyCapture(button, input);
     });
   });
+}
+
+function capturedKeyboardKey(event) {
+  const namedKeys = {
+    " ": "Space",
+    ArrowUp: "Up",
+    ArrowDown: "Down",
+    ArrowLeft: "Left",
+    ArrowRight: "Right",
+    PageUp: "PgUp",
+    PageDown: "PgDn",
+  };
+  const numpadKeys = {
+    NumpadAdd: "NumpadAdd",
+    NumpadSubtract: "NumpadSub",
+    NumpadMultiply: "NumpadMult",
+    NumpadDivide: "NumpadDiv",
+    NumpadDecimal: "NumpadDot",
+    NumpadEnter: "NumpadEnter",
+  };
+  if (/^Numpad\d$/.test(event.code)) return event.code;
+  if (numpadKeys[event.code]) return numpadKeys[event.code];
+  if (namedKeys[event.key]) return namedKeys[event.key];
+  if (/^F(?:[1-9]|1[0-2])$/.test(event.key)) return event.key;
+  if (event.key.length === 1) return event.key.toUpperCase();
+  return event.key;
+}
+
+function beginKeyCapture(button, input) {
+  if (cancelActiveCapture) cancelActiveCapture();
+
+  const originalText = button.textContent;
+  const isHotkey = input.id === "flow-hotkey" || input.id === "stop-hotkey";
+  const modifierKeys = new Set(["Control", "Alt", "Shift", "Meta"]);
+  const finish = (value, message) => {
+    document.removeEventListener("keydown", onKeyDown, true);
+    document.removeEventListener("mousedown", onMouseDown, true);
+    button.textContent = originalText;
+    cancelActiveCapture = null;
+    if (value) {
+      input.value = value;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    setStatus(message);
+  };
+  const onKeyDown = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.key === "Escape") {
+      finish("", `${button.dataset.legacy} 已取消采集。`);
+      return;
+    }
+    if (modifierKeys.has(event.key)) return;
+    const key = capturedKeyboardKey(event);
+    if (!key || key === "Unidentified") return;
+    const prefix = isHotkey
+      ? `${event.ctrlKey ? "^" : ""}${event.altKey ? "!" : ""}${event.shiftKey ? "+" : ""}${event.metaKey ? "#" : ""}`
+      : "";
+    finish(prefix + key, `已采集 ${button.dataset.legacy}：${prefix + key}。`);
+  };
+  const onMouseDown = (event) => {
+    const mouseKeys = { 1: "MButton", 3: "XButton1", 4: "XButton2" };
+    const key = mouseKeys[event.button];
+    if (!key) return;
+    event.preventDefault();
+    event.stopPropagation();
+    finish(key, `已采集 ${button.dataset.legacy}：${key}。`);
+  };
+
+  cancelActiveCapture = () => finish("", `${button.dataset.legacy} 已取消采集。`);
+  button.textContent = "等待...";
+  setStatus(`正在采集 ${button.dataset.legacy}，按键或点击中键/侧键，Esc 取消。`);
+  window.setTimeout(() => {
+    document.addEventListener("keydown", onKeyDown, true);
+    document.addEventListener("mousedown", onMouseDown, true);
+  }, 0);
+}
+
+async function captureCursorPoint(button) {
+  if (!window.fireWill) return;
+  if (cancelActiveCapture) cancelActiveCapture();
+
+  const row = button.closest("[data-farm]");
+  const targetX = row?.querySelector('[data-field="targetX"]');
+  const targetY = row?.querySelector('[data-field="targetY"]');
+  if (!targetX || !targetY) return;
+
+  const originalText = button.textContent;
+  button.disabled = true;
+  let remaining = 3;
+  button.textContent = `${remaining}秒`;
+  setStatus(`${button.dataset.legacy}：3 秒内把鼠标移到游戏里的技能目标点。`);
+  const timer = window.setInterval(() => {
+    remaining -= 1;
+    if (remaining > 0) button.textContent = `${remaining}秒`;
+  }, 1000);
+
+  window.setTimeout(async () => {
+    window.clearInterval(timer);
+    try {
+      const point = await window.fireWill.getCursorPosition();
+      targetX.value = String(Math.round(point.x));
+      targetY.value = String(Math.round(point.y));
+      setStatus(`已采集 ${button.dataset.legacy}：${targetX.value}, ${targetY.value}。`);
+    } catch (error) {
+      setStatus(`采集鼠标点失败：${error.message}`);
+    } finally {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  }, 3000);
 }
 
 async function initializeGameSession() {

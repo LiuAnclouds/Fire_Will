@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require("electron");
+const { app, BrowserWindow, ipcMain, screen } = require("electron");
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -446,9 +446,9 @@ app.whenReady().then(() => {
     backgroundVideo: pathToFileURL(path.join(uiRoot(), "assets", "background.mp4")).href,
     iconPng: pathToFileURL(path.join(uiRoot(), "assets", "icon.png")).href,
   }));
-  ipcMain.handle("backend:launch", () => launchBackend());
   ipcMain.handle("game:initialize", () => launchBackend({ initialize: true }));
   ipcMain.handle("game:get-session", () => readGameSession());
+  ipcMain.handle("input:get-cursor-position", () => screen.getCursorScreenPoint());
   ipcMain.handle("window:set-zoom", (event, action) => {
     const percent = updateZoom(event.sender, action);
     event.sender.send("window:zoom-changed", percent);
