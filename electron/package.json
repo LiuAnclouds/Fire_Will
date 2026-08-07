@@ -1,6 +1,6 @@
 {
   "name": "fire-will-portable",
-  "version": "0.1.9",
+  "version": "0.2.0",
   "description": "Fire Will portable Warcraft III workflow companion",
   "author": "Fire Will",
   "main": "main.js",
@@ -23,6 +23,7 @@
     "files": [
       "main.js",
       "preload.js",
+      "overlay-preload.js",
       "package.json"
     ],
     "extraResources": [

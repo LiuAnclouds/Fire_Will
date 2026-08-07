@@ -99,10 +99,16 @@
     <dialog id="keymap-dialog" class="keymap-dialog">
       <form method="dialog" class="keymap-form">
         <h2>平台按键映射表</h2>
-        <p>这里不自动读取 KK 平台映射。可手填 Tab/Space，也可点每格旁边的“采”后交给内置 AHK 采集；装备格不采坐标。</p>
+        <div class="overlay-settings">
+          <label class="check-label"><input id="overlay-enabled" type="checkbox" />游戏内 CD</label>
+          <label>透明度<input id="overlay-opacity" type="number" min="30" max="100" /></label>
+          <label>缩放 %<input id="overlay-scale" type="number" min="70" max="140" /></label>
+          <label>横向偏移<input id="overlay-offset-x" type="number" min="-500" max="500" /></label>
+          <label>纵向偏移<input id="overlay-offset-y" type="number" min="-500" max="500" /></label>
+        </div>
         <div class="keymap-columns">
           <fieldset>
-            <legend>技能栏 4列 x 3行</legend>
+            <legend>技能栏 4列 × 3行（按键 / CD秒）</legend>
             <div id="skill-map-grid" class="key-map-grid"></div>
           </fieldset>
           <fieldset>

@@ -382,11 +382,23 @@ function renderKeymap() {
   const skills = state.project?.keyMap.skills || [];
   const items = state.project?.keyMap.items || [];
   $("skill-map-grid").innerHTML = skills.map((skill) => (
-    `<label class="key-map-row"><span>${skill.slot}</span><input data-key-slot="${skill.slot}" value="${escapeAttr(skill.key)}" /><button type="button" data-legacy="技能${skill.slot}">采</button></label>`
+    `<label class="key-map-row skill-key-map-row">
+      <span>${skill.slot}</span>
+      <input data-key-slot="${skill.slot}" value="${escapeAttr(skill.key)}" />
+      <button type="button" data-legacy="技能${skill.slot}">采</button>
+      <input data-cooldown-slot="${skill.slot}" type="number" min="0" max="600" step="0.1" value="${Number(skill.cooldown) || 0}" />
+      <span class="cooldown-unit">s</span>
+    </label>`
   )).join("");
   $("item-map-grid").innerHTML = items.map((item) => (
     `<label class="key-map-row"><span>${item.slot}</span><input data-item-slot="${item.slot}" value="${escapeAttr(item.key)}" /><button type="button" data-legacy="装备${item.slot}">采</button></label>`
   )).join("");
+  const overlay = state.project?.overlay || {};
+  $("overlay-enabled").checked = overlay.enabled !== false;
+  $("overlay-opacity").value = Number(overlay.opacity) || 92;
+  $("overlay-scale").value = Number(overlay.scale) || 100;
+  $("overlay-offset-x").value = Number(overlay.offsetX) || 0;
+  $("overlay-offset-y").value = Number(overlay.offsetY) || 0;
   bindLegacyActions();
 }
 
@@ -394,13 +406,20 @@ async function saveKeymap() {
   const skills = Array.from(document.querySelectorAll("[data-key-slot]")).map((input) => ({
     slot: Number(input.dataset.keySlot),
     key: input.value.trim(),
-    cooldown: state.project.keyMap.skills.find((skill) => skill.slot === Number(input.dataset.keySlot))?.cooldown || 0,
+    cooldown: Number(document.querySelector(`[data-cooldown-slot="${input.dataset.keySlot}"]`)?.value) || 0,
   }));
   const items = Array.from(document.querySelectorAll("[data-item-slot]")).map((input) => ({
     slot: Number(input.dataset.itemSlot),
     key: input.value.trim(),
   }));
-  const project = await window.fireWill.saveBindings({ skills, items, farms: [] });
+  const overlay = {
+    enabled: $("overlay-enabled").checked,
+    opacity: Number($("overlay-opacity").value) || 92,
+    scale: Number($("overlay-scale").value) || 100,
+    offsetX: Number($("overlay-offset-x").value) || 0,
+    offsetY: Number($("overlay-offset-y").value) || 0,
+  };
+  const project = await window.fireWill.saveBindings({ skills, items, farms: [], overlay });
   $("keymap-dialog").close();
   render(project);
 }
