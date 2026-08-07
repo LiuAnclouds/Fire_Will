@@ -113,10 +113,22 @@ function parseIni(filePath) {
   if (!fs.existsSync(filePath)) return sections;
 
   let contents;
-  try {
-    contents = fs.readFileSync(filePath, "utf8");
-  } catch {
-    return iniCache.get(filePath) || sections;
+  // AHK rewrites the cooldown file atomically enough for normal reads, but
+  // Windows can briefly return EBUSY while the writer has it open. The
+  // overlay is polled every 100ms, so retrying here prevents a transient lock
+  // from becoming an uncaught main-process exception.
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      contents = fs.readFileSync(filePath, "utf8");
+      break;
+    } catch (error) {
+      if (attempt === 3) return iniCache.get(filePath) || sections;
+      const waitUntil = Date.now() + 8;
+      while (Date.now() < waitUntil) {
+        // Keep the retry synchronous so callers always receive a complete
+        // snapshot instead of racing a second read.
+      }
+    }
   }
 
   for (const raw of contents.split(/\r?\n/)) {
