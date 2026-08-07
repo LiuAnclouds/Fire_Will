@@ -522,6 +522,17 @@ select option {
   gap: 2px;
 }
 
+.overlay-config-note {
+  margin: 10px 0 0;
+  color: rgba(255, 226, 168, 0.86);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.overlay-config-note[data-ready="1"] {
+  color: rgba(167, 232, 201, 0.9);
+}
+
 .key-map-row button {
   min-height: 26px;
   padding: 0;

@@ -401,6 +401,14 @@ function renderKeymap() {
   $("overlay-scale").value = Number(overlay.scale) || 100;
   $("overlay-offset-x").value = Number(overlay.offsetX) || 0;
   $("overlay-offset-y").value = Number(overlay.offsetY) || 0;
+  const configured = skills.filter((skill) => skill.key && Number(skill.cooldown) > 0).length;
+  const note = $("overlay-config-note");
+  if (note) {
+    note.textContent = configured
+      ? "已配置 " + configured + "/12 个技能。按下对应技能键后，叠加层会在游戏客户区显示剩余秒数。"
+      : "当前没有技能键和 CD 秒数配置；请填写后保存，否则叠加层没有可显示的倒计时。";
+    note.dataset.ready = configured ? "1" : "0";
+  }
   bindLegacyActions();
 }
 
