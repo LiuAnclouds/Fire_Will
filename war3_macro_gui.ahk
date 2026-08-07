@@ -1399,7 +1399,7 @@ HeroSelectActionDuration(flow) {
 }
 
 HeroCameraLockGapMs() {
-    return 35
+    return 16
 }
 
 HeroCameraSettleDurationMs() {
@@ -2931,7 +2931,7 @@ LockHeroAndCamera() {
     if !SendGameKey("F1", HeroSelectMinHoldMs()) {
         return false
     }
-    Sleep Max(35, defaultHeroSelectDelayMs)
+    Sleep Max(HeroCameraLockGapMs(), defaultHeroSelectDelayMs)
     if !SendGameKey("F1", HeroSelectMinHoldMs()) {
         return false
     }
