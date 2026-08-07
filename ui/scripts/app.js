@@ -12,7 +12,9 @@ function setStatus(text) {
 }
 
 function renderGameSession(session = {}) {
-  const stateText = session.ready
+  const stateText = session.bound && !session.ready
+    ? "已绑定 · CD叠加可用"
+    : session.ready
     ? (session.projectionReady ? "已初始化 · 投影可用" : "已绑定 · 等待镜头校验")
     : (session.state || "未初始化");
   const node = $("game-session-state");
@@ -364,8 +366,8 @@ async function initializeGameSession() {
     attempts += 1;
     const session = await window.fireWill.getGameSession();
     renderGameSession(session);
-    if (session.ready || attempts >= 20) {
-      setStatus(session.message || (session.ready ? "本局游戏已初始化。" : "初始化未完成，请检查游戏是否已进入地图。"));
+    if (session.bound || session.ready || attempts >= 20) {
+      setStatus(session.message || (session.bound ? "游戏窗口已绑定。" : "初始化未完成，请检查游戏是否已进入地图。"));
       return;
     }
     window.setTimeout(poll, 500);

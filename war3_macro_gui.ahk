@@ -3148,9 +3148,10 @@ InitializeGameSession(*) {
     gameSession["projectionReady"] := false
 
     if !gameSession["gameBase"] {
-        message := "窗口已绑定，但读取 Game.dll 基址失败。请用管理员权限启动执行器。"
+        message := "游戏窗口已绑定，CD 叠加可用；Game.dll 读取失败，NPC 世界坐标点击暂不可用。"
         WriteGameSession("bound", message, false)
         SetStatus(message)
+        ShowGameTip("游戏窗口已绑定`nCD 叠加可用", 1800)
         return false
     }
 

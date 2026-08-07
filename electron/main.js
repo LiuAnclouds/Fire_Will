@@ -21,6 +21,7 @@ let overlayWindow = null;
 let overlaySyncTimer = null;
 let lastOverlaySignature = "";
 const singleInstanceLock = app.requestSingleInstanceLock();
+const iniCache = new Map();
 
 function isPackaged() {
   return app.isPackaged;
@@ -111,7 +112,14 @@ function parseIni(filePath) {
   let section = "";
   if (!fs.existsSync(filePath)) return sections;
 
-  for (const raw of fs.readFileSync(filePath, "utf8").split(/\r?\n/)) {
+  let contents;
+  try {
+    contents = fs.readFileSync(filePath, "utf8");
+  } catch {
+    return iniCache.get(filePath) || sections;
+  }
+
+  for (const raw of contents.split(/\r?\n/)) {
     const line = raw.trim();
     if (!line || line.startsWith(";") || line.startsWith("#")) continue;
     if (line.startsWith("[") && line.endsWith("]")) {
@@ -124,6 +132,7 @@ function parseIni(filePath) {
     sections[section] ||= {};
     sections[section][line.slice(0, index).trim()] = line.slice(index + 1).trim();
   }
+  iniCache.set(filePath, sections);
   return sections;
 }
 
@@ -531,8 +540,14 @@ function createOverlayWindow() {
 
 function syncOverlayWindow() {
   if (!overlayWindow || overlayWindow.isDestroyed()) return;
-  const session = readGameSession();
-  const payload = readOverlayPayload();
+  let session;
+  let payload;
+  try {
+    session = readGameSession();
+    payload = readOverlayPayload();
+  } catch {
+    return;
+  }
   const preview = Boolean(process.env.FIREWILL_OVERLAY_PREVIEW);
 
   if (preview) {
@@ -665,7 +680,7 @@ app.whenReady().then(() => {
   overlaySyncTimer = setInterval(syncOverlayWindow, 100);
   globalShortcut.register("F9", requestGameInitialization);
   if (!process.env.FIREWILL_SCREENSHOT && !process.env.FIREWILL_OVERLAY_PREVIEW) {
-    setTimeout(() => launchBackend({ background: true, elevated: true }), 500);
+    setTimeout(() => launchBackend({ background: true }), 500);
   }
 });
 
