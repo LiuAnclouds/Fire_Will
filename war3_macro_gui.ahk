@@ -139,6 +139,7 @@ teleportKeyDelayEdit := ""
 mouseMoveDelayEdit := ""
 releaseMouseMoveDelayEdit := ""
 currentActionElapsedMs := 0
+cameraLocked := false
 suppressDurationRefresh := false
 suppressFlowChange := false
 activeKeyCapture := ""
@@ -1313,7 +1314,10 @@ ComputeGroupActionDuration(slot, idx) {
     total := 0
     switch g["preType"] {
         case "按键":
-            total += KeyActionDuration(g["preValue"], flow)
+            preKey := NormalizeKey(g["preValue"])
+            if preKey != "" {
+                total += KeyActionDuration(preKey, flow) + GameKeyDispatchDurationMs(preKey)
+            }
         case "公屏":
             if Trim(g["preValue"]) != "" {
                 total += flow["chatDelay"]
@@ -1335,17 +1339,25 @@ ComputeFarmActionDuration(name, flow) {
 
     farm := farms[name]
     meta := farmMeta[name]
-    total := flow["mouseMoveDelay"] + flow["npcClickDelay"]
+    ; The world-coordinate click now reuses the camera lock established by
+    ; F9/F2/F3. Keep the fallback F1 path out of normal duration estimates;
+    ; it is only used when the lock was lost at runtime.
+    total := flow["mouseMoveDelay"] + NpcClickHoldDurationMs() + flow["npcClickDelay"]
     if meta["action"] != "只点击NPC" {
-        total += KeyActionDuration(farm["actionKey"], flow)
+        actionKey := NormalizeKey(farm["actionKey"])
+        if actionKey != "" {
+            total += KeyActionDuration(actionKey, flow) + GameKeyDispatchDurationMs(actionKey)
+        }
     }
 
     releaseType := NormalizeReleaseType(farm["releaseType"])
     if releaseType != "无" {
-        total += HeroSelectActionDuration(flow)
-        total += flow["releaseMouseMoveDelay"]
         releaseKey := ResolveReleaseKey(farm)
-        total += SkillKeyActionDuration(releaseKey, flow)
+        if releaseKey != "" && IsPointConfigured(farm["targetX"], farm["targetY"]) {
+            total += HeroSelectActionDuration(flow)
+            total += flow["releaseMouseMoveDelay"]
+            total += SkillKeyActionDuration(releaseKey, flow)
+        }
     }
     return total
 }
@@ -1356,6 +1368,17 @@ KeyActionDuration(key, flow) {
         return 0
     }
     return IsTeleportKey(key) ? flow["teleportKeyDelay"] : flow["keyDelay"]
+}
+
+GameKeyDispatchDurationMs(key := "") {
+    ; SendGameKey holds ordinary/menu keys for this fixed interval before the
+    ; configurable post-key delay is applied.
+    return InStr(NormalizeKey(key), "{") ? 0 : 15
+}
+
+NpcClickHoldDurationMs() {
+    ; GameLeftClick holds the mouse button down for 10ms.
+    return 10
 }
 
 SkillKeyActionDuration(key, flow) {
@@ -1370,7 +1393,18 @@ SkillKeyActionDuration(key, flow) {
 }
 
 HeroSelectActionDuration(flow) {
-    return Max(flow["heroSelectDelay"], HeroSelectMinHoldMs())
+    return 2 * Max(flow["heroSelectDelay"], HeroSelectMinHoldMs())
+        + HeroCameraLockGapMs()
+        + HeroCameraSettleDurationMs()
+}
+
+HeroCameraLockGapMs() {
+    return 35
+}
+
+HeroCameraSettleDurationMs() {
+    global worldProjection
+    return ToInt(worldProjection["f1SettleMs"], 40)
 }
 
 AdjustKeyDelay(direction, *) {
@@ -2292,7 +2326,12 @@ SkillKeyDelayFor(key) {
 }
 
 SelectHeroForRelease() {
+    global activeHeroSelectDelayMs, cameraLocked
     SendTimedGameKey("F1", activeHeroSelectDelayMs, HeroSelectMinHoldMs(), 80)
+    ActionDelayMs(HeroCameraLockGapMs())
+    SendTimedGameKey("F1", activeHeroSelectDelayMs, HeroSelectMinHoldMs(), 80)
+    ActionDelayMs(HeroCameraSettleDurationMs())
+    cameraLocked := true
 }
 
 HeroSelectDelay() {
@@ -2415,24 +2454,32 @@ SendChat(text) {
 }
 
 SendKey(key) {
+    global cameraLocked
     key := NormalizeKey(key)
     if key = "" {
         return ""
     }
     if SendGameKey(key) {
+        if IsTeleportKey(key) {
+            ; F2/F3 are map travel actions that also lock the hero camera.
+            cameraLocked := true
+        }
         return key
     }
     return ""
 }
 
 SendReleaseKey(key) {
-    global activeSkillKeyDelayMs, activeTeleportKeyDelayMs
+    global activeSkillKeyDelayMs, activeTeleportKeyDelayMs, cameraLocked
     key := NormalizeKey(key)
     if key = "" {
         return ""
     }
     durationMs := IsTeleportKey(key) ? activeTeleportKeyDelayMs : activeSkillKeyDelayMs
     if SendTimedGameKey(key, durationMs, ReleaseKeyMinHoldMs(key), ReleaseKeyMaxHoldMs(key, durationMs)) {
+        if IsTeleportKey(key) {
+            cameraLocked := true
+        }
         return key
     }
     return ""
@@ -2547,7 +2594,7 @@ SetRunWarning(text) {
 GameLeftClick() {
     try {
         SendEvent "{LButton down}"
-        Sleep 10
+        ActionDelayMs(NpcClickHoldDurationMs())
         SendEvent "{LButton up}"
     } catch {
         Click "Left"
@@ -2789,7 +2836,9 @@ HasCommandLineArg(expected) {
 }
 
 InitializeGameSession(*) {
-    global gameSession, gameWindowMatcher, worldProjection
+    global gameSession, gameWindowMatcher, worldProjection, cameraLocked
+
+    cameraLocked := false
 
     WriteGameSession("initializing", "正在绑定游戏窗口并读取本局参数。", false)
     if !FindAndBindGameWindow() {
@@ -2860,7 +2909,8 @@ InitializeGameSession(*) {
 }
 
 LockHeroAndCamera() {
-    global gameSession, defaultHeroSelectDelayMs, worldProjection
+    global gameSession, defaultHeroSelectDelayMs, worldProjection, cameraLocked
+    cameraLocked := false
     hwnd := gameSession["hwnd"]
     if !hwnd || !WinExist("ahk_id " hwnd) {
         return false
@@ -2886,6 +2936,7 @@ LockHeroAndCamera() {
         return false
     }
     Sleep Max(40, ToInt(worldProjection["f1SettleMs"], 40))
+    cameraLocked := true
     return true
 }
 
@@ -3098,7 +3149,7 @@ GetNpcSnapRadius() {
 }
 
 ClickWorldNpc(npcName) {
-    global npcs, gameSession, worldProjection
+    global npcs, gameSession, worldProjection, cameraLocked
     if !gameSession["ready"] {
         SetStatus("本局尚未初始化，请先点“绑定游戏窗口并初始化”。")
         return false
@@ -3107,13 +3158,15 @@ ClickWorldNpc(npcName) {
         SetStatus("NPC没有世界坐标配置：" npcName "。")
         return false
     }
-    ; Warcraft III uses the first F1 press to select the hero and the second
-    ; press to lock the camera on that hero. Keep both presses explicit so the
-    ; projection is refreshed only after the camera has settled.
-    SendTimedGameKey("F1", activeHeroSelectDelayMs, HeroSelectMinHoldMs(), 80)
-    SleepInterrupt(35)
-    SendTimedGameKey("F1", activeHeroSelectDelayMs, HeroSelectMinHoldMs(), 80)
-    SleepInterrupt(ToInt(worldProjection["f1SettleMs"], 40))
+    ; F9 and F2/F3 already lock the hero camera. Only use the old two-F1
+    ; recovery path when that lock was not established for this session.
+    if !cameraLocked {
+        SendTimedGameKey("F1", activeHeroSelectDelayMs, HeroSelectMinHoldMs(), 80)
+        ActionDelayMs(HeroCameraLockGapMs())
+        SendTimedGameKey("F1", activeHeroSelectDelayMs, HeroSelectMinHoldMs(), 80)
+        ActionDelayMs(HeroCameraSettleDurationMs())
+        cameraLocked := true
+    }
     if !IsProjectionConfigured() || !WorldToClient(npcs[npcName]["worldX"], npcs[npcName]["worldY"], &clientX, &clientY) {
         SetStatus("NPC不在当前可点击视野内，未发送鼠标点击：" npcName "。")
         return false
@@ -3170,7 +3223,7 @@ BindActiveWindowAsGame(*) {
 }
 
 BindWindowHwndAsGame(hwnd, source := "窗口") {
-    global gameWindowMatcher, gameSession
+    global gameWindowMatcher, gameSession, cameraLocked
     if hwnd = "" || hwnd = 0 {
         SetStatus("绑定失败：没有读到" source "句柄。")
         return false
@@ -3193,6 +3246,7 @@ BindWindowHwndAsGame(hwnd, source := "窗口") {
     }
 
     gameWindowMatcher := "ahk_id " hwnd
+    cameraLocked := false
     gameSession["ready"] := false
     gameSession["projectionReady"] := false
     if gameSession.Has("processHandle") && gameSession["processHandle"] {
