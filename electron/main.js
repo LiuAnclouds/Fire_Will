@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, screen } = require("electron");
+const { app, BrowserWindow, ipcMain, screen, globalShortcut } = require("electron");
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -20,6 +20,7 @@ let mainWindow = null;
 let overlayWindow = null;
 let overlaySyncTimer = null;
 let lastOverlaySignature = "";
+const singleInstanceLock = app.requestSingleInstanceLock();
 
 function isPackaged() {
   return app.isPackaged;
@@ -78,6 +79,19 @@ function sessionPath() {
 
 function cooldownPath() {
   return path.join(runtimeRoot(), "war3_cooldown.ini");
+}
+
+function initializeRequestPath() {
+  return path.join(runtimeRoot(), "war3_initialize.request");
+}
+
+function requestGameInitialization() {
+  try {
+    fs.writeFileSync(initializeRequestPath(), `${Date.now()}-${process.pid}`, "utf8");
+    return readState("已请求 F9 初始化，正在绑定当前 War3 窗口。");
+  } catch (error) {
+    return readState("写入 F9 初始化请求失败：" + error.message);
+  }
 }
 
 function parseIni(filePath) {
@@ -606,6 +620,10 @@ function updateZoom(webContents, action) {
 }
 
 app.whenReady().then(() => {
+  if (!singleInstanceLock) {
+    app.quit();
+    return;
+  }
   ensureRuntimeFiles();
   ipcMain.handle("project:get-state", () => readState());
   ipcMain.handle("project:save-layout", (_, payload) => saveLayout(payload));
@@ -616,7 +634,7 @@ app.whenReady().then(() => {
     backgroundVideo: pathToFileURL(path.join(uiRoot(), "assets", "background.mp4")).href,
     iconPng: pathToFileURL(path.join(uiRoot(), "assets", "icon.png")).href,
   }));
-  ipcMain.handle("game:initialize", () => launchBackend({ initialize: true }));
+  ipcMain.handle("game:initialize", () => requestGameInitialization());
   ipcMain.handle("game:get-session", () => readGameSession());
   ipcMain.handle("input:get-cursor-position", () => screen.getCursorScreenPoint());
   ipcMain.handle("window:set-zoom", (event, action) => {
@@ -627,6 +645,7 @@ app.whenReady().then(() => {
   createWindow();
   createOverlayWindow();
   overlaySyncTimer = setInterval(syncOverlayWindow, 100);
+  globalShortcut.register("F9", requestGameInitialization);
   if (!process.env.FIREWILL_SCREENSHOT && !process.env.FIREWILL_OVERLAY_PREVIEW) {
     setTimeout(() => launchBackend({ background: true, elevated: true }), 500);
   }
@@ -635,4 +654,8 @@ app.whenReady().then(() => {
 app.on("window-all-closed", () => {
   if (overlaySyncTimer) clearInterval(overlaySyncTimer);
   if (process.platform !== "darwin") app.quit();
+});
+
+app.on("will-quit", () => {
+  globalShortcut.unregisterAll();
 });

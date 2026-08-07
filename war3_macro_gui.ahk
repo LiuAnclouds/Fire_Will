@@ -18,6 +18,7 @@ appIconLarge := 0
 configPath := A_ScriptDir "\war3_macro_gui.ini"
 sessionPath := A_ScriptDir "\war3_session.ini"
 cooldownPath := A_ScriptDir "\war3_cooldown.ini"
+initializeRequestPath := A_ScriptDir "\war3_initialize.request"
 profileDir := A_ScriptDir "\profiles"
 flowCount := 8
 groupCount := 8
@@ -151,6 +152,7 @@ suppressFlowChange := false
 chatInputOpen := false
 sessionActiveLast := -1
 sessionBoundsLast := ""
+initializeRequestSeen := ""
 activeKeyCapture := ""
 keyCaptureMouseHotkeys := ["*XButton1", "*XButton2", "*MButton"]
 headlessMode := HasCommandLineArg("--background") || HasCommandLineArg("--initialize")
@@ -166,6 +168,7 @@ if !headlessMode {
 } else {
     SetTimer PollConfigChanges, 250
     SetTimer PollGameWindowState, 250
+    SetTimer PollInitializeRequest, 100
 }
 ApplyFlowHotkeys()
 if HasCommandLineArg("--initialize") {
@@ -173,11 +176,15 @@ if HasCommandLineArg("--initialize") {
 }
 
 #HotIf IsGameActive()
-F9::InitializeGameSession()
 ^!b::BindActiveWindowAsGame()
 ~$Enter::OpenSkillChatInput()
 ~$Escape::CloseSkillChatInput()
 #HotIf
+
+; F9 is intentionally global so the Warcraft shortcut cannot receive it when
+; the game window matcher is stale. Electron normally captures F9 first and
+; writes the request consumed by the already-running elevated backend.
+F9::InitializeGameSession()
 
 ApplyTrayIcon() {
     global appIconPath
@@ -482,6 +489,19 @@ PollGameWindowState(*) {
         return
     }
     WriteGameSession(gameSession["state"], gameSession["message"], gameSession["projectionReady"])
+}
+
+PollInitializeRequest(*) {
+    global initializeRequestPath, initializeRequestSeen
+    try request := Trim(FileRead(initializeRequestPath))
+    catch {
+        return
+    }
+    if request = "" || request = initializeRequestSeen {
+        return
+    }
+    initializeRequestSeen := request
+    InitializeGameSession()
 }
 
 ReloadConfigIfChanged() {
