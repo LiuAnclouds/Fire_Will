@@ -85,12 +85,24 @@ function initializeRequestPath() {
   return path.join(runtimeRoot(), "war3_initialize.request");
 }
 
+function shutdownRequestPath() {
+  return path.join(runtimeRoot(), "war3_shutdown.request");
+}
+
 function requestGameInitialization() {
   try {
     fs.writeFileSync(initializeRequestPath(), `${Date.now()}-${process.pid}`, "utf8");
     return readState("已请求 F9 初始化，正在绑定当前 War3 窗口。");
   } catch (error) {
     return readState("写入 F9 初始化请求失败：" + error.message);
+  }
+}
+
+function requestBackendShutdown() {
+  try {
+    fs.writeFileSync(shutdownRequestPath(), `${Date.now()}-${process.pid}`, "utf8");
+  } catch {
+    // Parent-PID monitoring remains as the crash/close fallback.
   }
 }
 
@@ -411,7 +423,7 @@ function launchBackend(options = {}) {
     const args = options.initialize
       ? ["--initialize"]
       : options.background
-        ? ["--background"]
+        ? ["--background", "--parent-pid", String(process.pid)]
         : [];
     let child;
     if (options.initialize || options.elevated) {
@@ -625,6 +637,12 @@ app.whenReady().then(() => {
     return;
   }
   ensureRuntimeFiles();
+  try {
+    fs.rmSync(shutdownRequestPath(), { force: true });
+    fs.rmSync(initializeRequestPath(), { force: true });
+  } catch {
+    // The backend will still recover through its parent-PID monitor.
+  }
   ipcMain.handle("project:get-state", () => readState());
   ipcMain.handle("project:save-layout", (_, payload) => saveLayout(payload));
   ipcMain.handle("project:save-profile-as", (_, profileName) => saveProfileAs(profileName));
@@ -657,5 +675,6 @@ app.on("window-all-closed", () => {
 });
 
 app.on("will-quit", () => {
+  requestBackendShutdown();
   globalShortcut.unregisterAll();
 });

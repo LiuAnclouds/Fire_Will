@@ -19,6 +19,7 @@ configPath := A_ScriptDir "\war3_macro_gui.ini"
 sessionPath := A_ScriptDir "\war3_session.ini"
 cooldownPath := A_ScriptDir "\war3_cooldown.ini"
 initializeRequestPath := A_ScriptDir "\war3_initialize.request"
+shutdownRequestPath := A_ScriptDir "\war3_shutdown.request"
 profileDir := A_ScriptDir "\profiles"
 flowCount := 8
 groupCount := 8
@@ -153,6 +154,8 @@ chatInputOpen := false
 sessionActiveLast := -1
 sessionBoundsLast := ""
 initializeRequestSeen := ""
+shutdownRequestSeen := ""
+parentPid := ToInt(GetCommandLineArgValue("--parent-pid"), 0)
 activeKeyCapture := ""
 keyCaptureMouseHotkeys := ["*XButton1", "*XButton2", "*MButton"]
 headlessMode := HasCommandLineArg("--background") || HasCommandLineArg("--initialize")
@@ -169,8 +172,11 @@ if !headlessMode {
     SetTimer PollConfigChanges, 250
     SetTimer PollGameWindowState, 250
     SetTimer PollInitializeRequest, 100
+    SetTimer PollShutdownRequest, 100
+    SetTimer PollParentProcess, 500
 }
 ApplyFlowHotkeys()
+OnExit HandleScriptExit
 if HasCommandLineArg("--initialize") {
     SetTimer InitializeGameSession, -350
 }
@@ -502,6 +508,26 @@ PollInitializeRequest(*) {
     }
     initializeRequestSeen := request
     InitializeGameSession()
+}
+
+PollShutdownRequest(*) {
+    global shutdownRequestPath, shutdownRequestSeen
+    try request := Trim(FileRead(shutdownRequestPath))
+    catch {
+        return
+    }
+    if request = "" || request = shutdownRequestSeen {
+        return
+    }
+    shutdownRequestSeen := request
+    ExitApp
+}
+
+PollParentProcess(*) {
+    global parentPid
+    if parentPid && !ProcessExist(parentPid) {
+        ExitApp
+    }
 }
 
 ReloadConfigIfChanged() {
@@ -3047,6 +3073,33 @@ HasCommandLineArg(expected) {
         }
     }
     return false
+}
+
+GetCommandLineArgValue(expected) {
+    for index, value in A_Args {
+        if StrLower(Trim(value)) = StrLower(expected) && index < A_Args.Length {
+            return Trim(A_Args[index + 1])
+        }
+        prefix := StrLower(expected) "="
+        if SubStr(StrLower(Trim(value)), 1, StrLen(prefix)) = prefix {
+            return SubStr(Trim(value), StrLen(prefix) + 1)
+        }
+    }
+    return ""
+}
+
+HandleScriptExit(exitReason, exitCode) {
+    global gameSession, sessionPath
+    try {
+        if gameSession["bound"] {
+            WriteGameSession("closed", "Fire Will 后台已关闭。", false)
+        }
+    }
+    try {
+        if gameSession.Has("processHandle") && gameSession["processHandle"] {
+            DllCall("CloseHandle", "ptr", gameSession["processHandle"])
+        }
+    }
 }
 
 InitializeGameSession(*) {
