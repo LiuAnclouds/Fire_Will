@@ -36,3 +36,6 @@ electron/node_modules/
 electron/dist/
 !electron/backend/war3_macro_gui.exe
 
+# Native probe captures are machine/session specific.
+native/probe/*.json
+
