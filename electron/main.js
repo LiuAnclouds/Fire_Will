@@ -641,7 +641,9 @@ app.whenReady().then(() => {
   hudSyncTimer = setInterval(syncHudWindow, 100);
   globalShortcut.register("F9", requestGameInitialization);
   if (!process.env.FIREWILL_SCREENSHOT && !process.env.FIREWILL_HUD_PREVIEW) {
-    setTimeout(() => launchBackend({ background: true }), 500);
+    // War3 is commonly elevated; the backend must match its integrity level
+    // before it can enumerate Game.dll or read the game process.
+    setTimeout(() => launchBackend({ background: true, elevated: true }), 500);
   }
 });
 
