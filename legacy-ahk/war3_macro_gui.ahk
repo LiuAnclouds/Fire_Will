@@ -2911,7 +2911,7 @@ InitializeGameSession(*) {
     gameSession["clientWidth"] := metrics["width"]
     gameSession["clientHeight"] := metrics["height"]
     gameSession["dpi"] := metrics["dpi"]
-    gameSession["gameBase"] := FindRemoteModuleBase(pid, "Game.dll")
+    gameSession["gameBase"] := FindRemoteModuleBaseWithRetry(pid, "Game.dll", 2000)
     gameSession["gameModuleName"] := gameSession["gameBase"] ? "Game.dll" : ""
     gameSession["ready"] := true
     gameSession["projectionReady"] := false
@@ -3035,6 +3035,20 @@ FindRemoteModuleBase(pid, moduleName) {
         DllCall("CloseHandle", "ptr", snapshot)
     }
     return 0
+}
+
+FindRemoteModuleBaseWithRetry(pid, moduleName, timeoutMs := 2000) {
+    deadline := A_TickCount + Max(0, timeoutMs)
+    loop {
+        base := FindRemoteModuleBase(pid, moduleName)
+        if base {
+            return base
+        }
+        if A_TickCount >= deadline {
+            return 0
+        }
+        Sleep(50)
+    }
 }
 
 OpenGameProcess() {
