@@ -3241,8 +3241,10 @@ RefreshBoundWindowState() {
 
     metrics := ReadGameClientMetrics(hwnd)
     if !metrics.Has("width") || metrics["width"] <= 0 || metrics["height"] <= 0 {
-        InvalidateGameSession("无法读取当前游戏客户区，程序会自动重新绑定，也可按 F9。")
-        return false
+        ; A minimized or temporarily occluded War3 window can report a 0x0
+        ; client area. Keep the valid hwnd/PID binding and retry next tick;
+        ; invalidating here disables every macro hotkey during alt-tab.
+        return true
     }
 
     gameSession["clientLeft"] := metrics["left"]
