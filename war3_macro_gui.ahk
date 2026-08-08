@@ -155,6 +155,9 @@ initializeRequestSeen := ""
 shutdownRequestSeen := ""
 autoInitLastAttempt := 0
 autoInitRetryMs := 5000
+autoInitPid := 0
+autoInitAttempts := 0
+autoInitMaxAttempts := 12
 parentPid := ToInt(GetCommandLineArgValue("--parent-pid"), 0)
 activeKeyCapture := ""
 keyCaptureMouseHotkeys := ["*XButton1", "*XButton2", "*MButton"]
@@ -510,9 +513,27 @@ PollInitializeRequest(*) {
 }
 
 AutoInitializeGameSession(*) {
-    global gameSession, autoInitLastAttempt, autoInitRetryMs
+    global gameSession, autoInitLastAttempt, autoInitRetryMs, autoInitPid, autoInitAttempts, autoInitMaxAttempts
 
-    if gameSession["ready"] || !IsProjectionConfigured() {
+    if gameSession["ready"] || (autoInitAttempts > 0 && !IsProjectionConfigured()) {
+        return
+    }
+
+    hwnd := FindExistingGameWindow()
+    if !hwnd {
+        return
+    }
+
+    pid := GetWindowPid(hwnd)
+    if !pid {
+        return
+    }
+    if pid != autoInitPid {
+        autoInitPid := pid
+        autoInitAttempts := 0
+        autoInitLastAttempt := 0
+    }
+    if autoInitAttempts >= autoInitMaxAttempts {
         return
     }
 
@@ -521,17 +542,12 @@ AutoInitializeGameSession(*) {
         return
     }
 
-    hwnd := GetBoundGameHwnd()
-    if !hwnd {
-        return
-    }
-
-    pid := GetWindowPid(hwnd)
-    if !pid || !FindRemoteModuleBase(pid, "Game.dll") {
+    if !FindRemoteModuleBase(pid, "Game.dll") {
         return
     }
 
     autoInitLastAttempt := now
+    autoInitAttempts += 1
     InitializeGameSession()
 }
 
@@ -3575,6 +3591,24 @@ FindAndBindGameWindow(*) {
     SetStatus("绑定失败：没找到游戏窗口。请确认 War3 已启动并进入游戏画面。")
     QuietTip("未找到游戏窗口", 1200)
     return false
+}
+
+FindExistingGameWindow() {
+    global gameMatchers
+    for _, matcher in gameMatchers {
+        try hwnds := WinGetList(matcher)
+        catch {
+            continue
+        }
+        for _, hwnd in hwnds {
+            title := SafeWinGetTitle("ahk_id " hwnd)
+            exe := SafeWinGetProcessName("ahk_id " hwnd)
+            if !IsMacroConfigWindow(hwnd, title, exe) {
+                return hwnd
+            }
+        }
+    }
+    return 0
 }
 
 GetForegroundWindowID() {
