@@ -17,9 +17,6 @@ const farmNames = [
 const releaseTypeOptions = ["无", "技能按键", "装备按键", "技能槽位", "装备槽位"];
 const preTypeOptions = ["无", "按键", "公屏"];
 let mainWindow = null;
-let overlayWindow = null;
-let overlaySyncTimer = null;
-let lastOverlaySignature = "";
 const singleInstanceLock = app.requestSingleInstanceLock();
 const iniCache = new Map();
 
@@ -78,10 +75,6 @@ function sessionPath() {
   return path.join(runtimeRoot(), "war3_session.ini");
 }
 
-function cooldownPath() {
-  return path.join(runtimeRoot(), "war3_cooldown.ini");
-}
-
 function initializeRequestPath() {
   return path.join(runtimeRoot(), "war3_initialize.request");
 }
@@ -113,10 +106,8 @@ function parseIni(filePath) {
   if (!fs.existsSync(filePath)) return sections;
 
   let contents;
-  // AHK rewrites the cooldown file atomically enough for normal reads, but
-  // Windows can briefly return EBUSY while the writer has it open. The
-  // overlay is polled every 100ms, so retrying here prevents a transient lock
-  // from becoming an uncaught main-process exception.
+  // Windows can briefly return EBUSY while the backend rewrites its state;
+  // retrying keeps a transient file lock from escaping to the UI.
   for (let attempt = 0; attempt < 4; attempt += 1) {
     try {
       contents = fs.readFileSync(filePath, "utf8");
@@ -172,29 +163,6 @@ function readGameSession() {
     width: intValue(session.clientWidth, 0),
     height: intValue(session.clientHeight, 0),
   };
-}
-
-function readOverlaySettings(ini) {
-  return {
-    enabled: iniGet(ini, "Overlay", "enabled", "1") === "1",
-    opacity: Math.max(30, Math.min(100, intValue(iniGet(ini, "Overlay", "opacity"), 92))),
-    scale: Math.max(70, Math.min(140, intValue(iniGet(ini, "Overlay", "scale"), 100))),
-    offsetX: Math.max(-500, Math.min(500, intValue(iniGet(ini, "Overlay", "offsetX"), 0))),
-    offsetY: Math.max(-500, Math.min(500, intValue(iniGet(ini, "Overlay", "offsetY"), 0))),
-  };
-}
-
-function readCooldownState() {
-  const ini = parseIni(cooldownPath());
-  const cooldown = ini.Cooldown || {};
-  return Array.from({ length: 12 }, (_, index) => {
-    const slot = index + 1;
-    return {
-      slot,
-      endAt: Number(cooldown["skill" + slot + "End"] || 0),
-      duration: Number(cooldown["skill" + slot + "Duration"] || 0),
-    };
-  });
 }
 
 function readState(toast = "") {
@@ -253,7 +221,6 @@ function readState(toast = "") {
     gameSession: readGameSession(),
     profileName: iniGet(ini, "General", "currentProfileName", "默认/未读取"),
     stopHotkey: iniGet(ini, "General", "stopHotkey", "Z"),
-    overlay: readOverlaySettings(ini),
     profiles,
     options: { farmNames, releaseTypeOptions, preTypeOptions },
     farms: farmNames.map((name) => ({
@@ -270,7 +237,6 @@ function readState(toast = "") {
         return {
           slot,
           key: iniGet(ini, "KeyMap", "skill" + slot),
-          cooldown: Number(iniGet(ini, "SkillCooldown", "skill" + slot, "0")) || 0,
         };
       }),
       items: Array.from({ length: 6 }, (_, index) => {
@@ -404,22 +370,12 @@ function updateIni(filePath, updates) {
 }
 
 function saveBindings(payload) {
-  const overlay = payload.overlay || {};
   const updates = {
     KeyMap: {},
-    SkillCooldown: {},
-    Overlay: {
-      enabled: overlay.enabled === false ? "0" : "1",
-      opacity: String(Math.max(30, Math.min(100, Number(overlay.opacity) || 92))),
-      scale: String(Math.max(70, Math.min(140, Number(overlay.scale) || 100))),
-      offsetX: String(Math.max(-500, Math.min(500, Number(overlay.offsetX) || 0))),
-      offsetY: String(Math.max(-500, Math.min(500, Number(overlay.offsetY) || 0))),
-    },
   };
   for (const skill of payload.skills || []) {
     if (skill.slot < 1 || skill.slot > 12) continue;
     updates.KeyMap["skill" + skill.slot] = String(skill.key || "");
-    updates.SkillCooldown["skill" + skill.slot] = String(Math.max(0, Math.min(600, Number(skill.cooldown) || 0)));
   }
   for (const item of payload.items || []) {
     if (item.slot < 1 || item.slot > 6) continue;
@@ -433,7 +389,7 @@ function saveBindings(payload) {
     };
   }
   updateIni(configPath(), updates);
-  return readState("已保存用户快捷键和技能 CD 设置。");
+  return readState("已保存用户技能和装备快捷键。");
 }
 
 function launchBackend(options = {}) {
@@ -479,128 +435,6 @@ function launchBackend(options = {}) {
   }
 }
 
-function physicalClientToDipBounds(session) {
-  const displays = screen.getAllDisplays();
-  const display = displays.find((candidate) => {
-    const factor = candidate.scaleFactor || 1;
-    const left = candidate.bounds.x * factor;
-    const top = candidate.bounds.y * factor;
-    return session.left >= left
-      && session.left < left + candidate.bounds.width * factor
-      && session.top >= top
-      && session.top < top + candidate.bounds.height * factor;
-  }) || screen.getPrimaryDisplay();
-  const factor = display.scaleFactor || 1;
-  return {
-    x: Math.round(display.bounds.x + (session.left - display.bounds.x * factor) / factor),
-    y: Math.round(display.bounds.y + (session.top - display.bounds.y * factor) / factor),
-    width: Math.max(1, Math.round(session.width / factor)),
-    height: Math.max(1, Math.round(session.height / factor)),
-  };
-}
-
-function readOverlayPayload() {
-  const ini = parseIni(configPath());
-  const cooldowns = readCooldownState();
-  return {
-    settings: readOverlaySettings(ini),
-    profileName: iniGet(ini, "General", "currentProfileName", ""),
-    skills: cooldowns.map((cooldown) => ({
-      ...cooldown,
-      key: iniGet(ini, "KeyMap", "skill" + cooldown.slot),
-      configuredDuration: Number(iniGet(ini, "SkillCooldown", "skill" + cooldown.slot, "0")) || 0,
-    })),
-  };
-}
-
-function createOverlayWindow() {
-  overlayWindow = new BrowserWindow({
-    show: false,
-    frame: false,
-    transparent: true,
-    focusable: false,
-    resizable: false,
-    movable: false,
-    minimizable: false,
-    maximizable: false,
-    fullscreenable: false,
-    skipTaskbar: true,
-    hasShadow: false,
-    backgroundColor: "#00000000",
-    webPreferences: {
-      preload: path.join(__dirname, "overlay-preload.js"),
-      contextIsolation: true,
-      nodeIntegration: false,
-      backgroundThrottling: false,
-    },
-  });
-  overlayWindow.setIgnoreMouseEvents(true, { forward: true });
-  overlayWindow.setAlwaysOnTop(true, "screen-saver", 1);
-  overlayWindow.loadFile(path.join(uiRoot(), "overlay.html"));
-  if (process.env.FIREWILL_OVERLAY_SCREENSHOT) {
-    overlayWindow.webContents.once("did-finish-load", () => {
-      setTimeout(async () => {
-        syncOverlayWindow();
-        const image = await overlayWindow.webContents.capturePage();
-        fs.writeFileSync(process.env.FIREWILL_OVERLAY_SCREENSHOT, image.toPNG());
-        app.quit();
-      }, 900);
-    });
-  }
-  overlayWindow.on("closed", () => { overlayWindow = null; });
-}
-
-function syncOverlayWindow() {
-  if (!overlayWindow || overlayWindow.isDestroyed()) return;
-  let session;
-  let payload;
-  try {
-    session = readGameSession();
-    payload = readOverlayPayload();
-  } catch {
-    return;
-  }
-  const preview = Boolean(process.env.FIREWILL_OVERLAY_PREVIEW);
-
-  if (preview) {
-    payload.preview = true;
-    const now = Date.now();
-    payload.skills = payload.skills.map((skill, index) => ({
-      ...skill,
-      key: skill.key || ["Q", "W", "E", "R"][index % 4],
-      configuredDuration: skill.configuredDuration || 12 + index * 3,
-      duration: skill.configuredDuration || 12 + index * 3,
-      endAt: index < 7 ? now + (2.8 + index * 1.9) * 1000 : 0,
-    }));
-  }
-
-  const shouldShow = preview || (
-    payload.settings.enabled
-    && session.bound
-    && session.active
-    && session.width > 0
-    && session.height > 0
-  );
-  if (!shouldShow) {
-    if (overlayWindow.isVisible()) overlayWindow.hide();
-    return;
-  }
-
-  const bounds = preview
-    ? { x: 80, y: 80, width: 1280, height: 720 }
-    : physicalClientToDipBounds(session);
-  const currentBounds = overlayWindow.getBounds();
-  if (JSON.stringify(currentBounds) !== JSON.stringify(bounds)) {
-    overlayWindow.setBounds(bounds, false);
-  }
-  const signature = JSON.stringify(payload);
-  if (signature !== lastOverlaySignature) {
-    lastOverlaySignature = signature;
-    overlayWindow.webContents.send("overlay:state", payload);
-  }
-  if (!overlayWindow.isVisible()) overlayWindow.showInactive();
-}
-
 function createWindow() {
   const window = new BrowserWindow({
     width: 1500,
@@ -618,7 +452,6 @@ function createWindow() {
   mainWindow = window;
   window.on("closed", () => {
     mainWindow = null;
-    if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.close();
   });
   window.webContents.on("before-input-event", (event, input) => {
     if (!input.control || input.type !== "keyDown") return;
@@ -688,16 +521,13 @@ app.whenReady().then(() => {
     return percent;
   });
   createWindow();
-  createOverlayWindow();
-  overlaySyncTimer = setInterval(syncOverlayWindow, 100);
   globalShortcut.register("F9", requestGameInitialization);
-  if (!process.env.FIREWILL_SCREENSHOT && !process.env.FIREWILL_OVERLAY_PREVIEW) {
+  if (!process.env.FIREWILL_SCREENSHOT) {
     setTimeout(() => launchBackend({ background: true }), 500);
   }
 });
 
 app.on("window-all-closed", () => {
-  if (overlaySyncTimer) clearInterval(overlaySyncTimer);
   if (process.platform !== "darwin") app.quit();
 });
 

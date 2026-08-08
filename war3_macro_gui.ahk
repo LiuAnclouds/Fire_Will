@@ -17,7 +17,6 @@ appIconSmall := 0
 appIconLarge := 0
 configPath := A_ScriptDir "\war3_macro_gui.ini"
 sessionPath := A_ScriptDir "\war3_session.ini"
-cooldownPath := A_ScriptDir "\war3_cooldown.ini"
 initializeRequestPath := A_ScriptDir "\war3_initialize.request"
 shutdownRequestPath := A_ScriptDir "\war3_shutdown.request"
 profileDir := A_ScriptDir "\profiles"
@@ -128,7 +127,6 @@ farms := Map()
 farmMeta := Map()
 flows := Map()
 keyMap := Map()
-skillCooldowns := Map()
 farmRows := Map()
 groupRows := []
 currentFlowSlot := 1
@@ -217,7 +215,7 @@ ApplyGuiIcon(guiObj) {
 }
 
 BuildDefaults() {
-    global npcs, farms, farmMeta, flows, keyMap, skillCooldowns
+    global npcs, farms, farmMeta, flows, keyMap
     global npcNames, farmNames, flowNames, flowCount, groupCount, skillSlotCount, itemSlotCount, skillDefaultKeys
     global defaultKeyDelayMs, defaultSkillKeyDelayMs, defaultHeroSelectDelayMs, defaultNpcClickDelayMs, defaultChatDelayMs, defaultTeleportKeyDelayMs, defaultMouseMoveDelayMs, defaultReleaseMouseMoveDelayMs
 
@@ -288,7 +286,6 @@ BuildDefaults() {
 
     Loop skillSlotCount {
         keyMap["skill" A_Index] := skillDefaultKeys[A_Index]
-        skillCooldowns["skill" A_Index] := 0
     }
     Loop itemSlotCount {
         keyMap["item" A_Index] := ""
@@ -325,7 +322,7 @@ ResetFlowNames() {
 }
 
 LoadConfig() {
-    global configPath, profileDir, npcs, farms, flows, keyMap, skillCooldowns, gameWindowMatcher, skipGameCheck, stopHotkey, defaultStopHotkey
+    global configPath, profileDir, npcs, farms, flows, keyMap, gameWindowMatcher, skipGameCheck, stopHotkey, defaultStopHotkey
     global keyDelayMs, skillKeyDelayMs, heroSelectDelayMs, npcClickDelayMs, chatDelayMs, teleportKeyDelayMs, mouseMoveDelayMs, releaseMouseMoveDelayMs
     global defaultKeyDelayMs, defaultSkillKeyDelayMs, defaultHeroSelectDelayMs, defaultNpcClickDelayMs, defaultChatDelayMs, defaultTeleportKeyDelayMs, defaultMouseMoveDelayMs, defaultReleaseMouseMoveDelayMs
     global currentProfileName, currentProfilePath, worldProjection
@@ -456,7 +453,6 @@ LoadConfig() {
 
     Loop skillSlotCount {
         keyMap["skill" A_Index] := NormalizeKey(IniRead(configPath, "KeyMap", "skill" A_Index, keyMap["skill" A_Index]))
-        skillCooldowns["skill" A_Index] := Clamp(ToFloat(IniRead(configPath, "SkillCooldown", "skill" A_Index, skillCooldowns["skill" A_Index]), 0), 0, 600)
     }
     Loop itemSlotCount {
         keyMap["item" A_Index] := NormalizeKey(IniRead(configPath, "KeyMap", "item" A_Index, keyMap["item" A_Index]))
@@ -556,7 +552,7 @@ ReloadConfigIfChanged() {
 }
 
 SaveConfig() {
-    global configPath, npcs, farms, flows, keyMap, skillCooldowns, gameWindowMatcher, skipGameCheck, stopHotkey
+    global configPath, npcs, farms, flows, keyMap, gameWindowMatcher, skipGameCheck, stopHotkey
     global keyDelayMs, skillKeyDelayMs, heroSelectDelayMs, npcClickDelayMs, chatDelayMs, teleportKeyDelayMs, mouseMoveDelayMs, releaseMouseMoveDelayMs
     global currentProfileName, currentProfilePath, worldProjection
     global npcNames, farmNames, flowCount, groupCount, skillSlotCount, itemSlotCount
@@ -619,7 +615,6 @@ SaveConfig() {
 
     Loop skillSlotCount {
         IniWrite(keyMap["skill" A_Index], configPath, "KeyMap", "skill" A_Index)
-        IniWrite(skillCooldowns["skill" A_Index], configPath, "SkillCooldown", "skill" A_Index)
     }
     Loop itemSlotCount {
         IniWrite(keyMap["item" A_Index], configPath, "KeyMap", "item" A_Index)
@@ -2137,37 +2132,7 @@ ApplyFlowHotkeys() {
             SetStatus("热键无效：" hk "；" err.Message)
         }
     }
-    ApplySkillCooldownHotkeys()
     HotIf
-}
-
-ApplySkillCooldownHotkeys() {
-    global keyMap, skillCooldowns, skillSlotCount, registeredHotkeys
-    seen := Map()
-    Loop skillSlotCount {
-        slot := A_Index
-        key := NormalizeKey(keyMap["skill" slot])
-        cooldown := ToFloat(skillCooldowns["skill" slot], 0)
-        if key = "" || cooldown <= 0 || seen.Has(StrLower(key)) {
-            continue
-        }
-        seen[StrLower(key)] := true
-        try {
-            runtimeHk := "~$*" StripHotkeyRuntimeDecorators(key)
-            Hotkey(runtimeHk, HandleManualSkillCooldown.Bind(slot), "On")
-            registeredHotkeys.Push(runtimeHk)
-        } catch as err {
-            SetStatus("技能 CD 监听键无效：第" slot "格 / " key "；" err.Message)
-        }
-    }
-}
-
-HandleManualSkillCooldown(slot, *) {
-    global chatInputOpen
-    if chatInputOpen {
-        return
-    }
-    RecordSkillCooldown(slot)
 }
 
 OpenSkillChatInput(*) {
@@ -2672,50 +2637,9 @@ SendReleaseKey(key) {
         if IsTeleportKey(key) {
             cameraLocked := true
         }
-        StartSkillCooldownForKey(key)
         return key
     }
     return ""
-}
-
-StartSkillCooldownForKey(key) {
-    global keyMap, skillSlotCount
-    key := StrLower(NormalizeKey(key))
-    if key = "" {
-        return
-    }
-    Loop skillSlotCount {
-        if StrLower(NormalizeKey(keyMap["skill" A_Index])) = key {
-            RecordSkillCooldown(A_Index)
-            return
-        }
-    }
-}
-
-RecordSkillCooldown(slot) {
-    global skillCooldowns, cooldownPath
-    cooldown := ToFloat(skillCooldowns["skill" slot], 0)
-    if cooldown <= 0 {
-        return false
-    }
-    endAt := GetUnixTimeMs() + Round(cooldown * 1000)
-    IniWrite(endAt, cooldownPath, "Cooldown", "skill" slot "End")
-    IniWrite(cooldown, cooldownPath, "Cooldown", "skill" slot "Duration")
-    return true
-}
-
-ClearSkillCooldowns() {
-    global skillSlotCount, cooldownPath
-    Loop skillSlotCount {
-        IniWrite(0, cooldownPath, "Cooldown", "skill" A_Index "End")
-        IniWrite(0, cooldownPath, "Cooldown", "skill" A_Index "Duration")
-    }
-}
-
-GetUnixTimeMs() {
-    fileTime := Buffer(8, 0)
-    DllCall("GetSystemTimeAsFileTime", "ptr", fileTime)
-    return Floor((NumGet(fileTime, 0, "int64") - 116444736000000000) / 10000)
 }
 
 HeroSelectMinHoldMs() {
@@ -3109,7 +3033,6 @@ InitializeGameSession(*) {
     gameSession["bound"] := false
     gameSession["ready"] := false
     gameSession["projectionReady"] := false
-    ClearSkillCooldowns()
 
     WriteGameSession("initializing", "正在绑定游戏窗口并读取本局参数。", false)
     if !FindAndBindGameWindow() {
