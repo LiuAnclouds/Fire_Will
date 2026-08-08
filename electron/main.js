@@ -17,6 +17,9 @@ const farmNames = [
 const releaseTypeOptions = ["无", "技能按键", "装备按键", "技能槽位", "装备槽位"];
 const preTypeOptions = ["无", "按键", "公屏"];
 let mainWindow = null;
+let hudWindow = null;
+let hudSyncTimer = null;
+let lastHudSignature = "";
 const singleInstanceLock = app.requestSingleInstanceLock();
 const iniCache = new Map();
 
@@ -162,6 +165,16 @@ function readGameSession() {
     top: intValue(session.clientTop, 0),
     width: intValue(session.clientWidth, 0),
     height: intValue(session.clientHeight, 0),
+  };
+}
+
+function readHudAppearance(ini) {
+  return {
+    enabled: iniGet(ini, "HudAppearance", "enabled", "1") === "1",
+    opacity: Math.max(25, Math.min(100, intValue(iniGet(ini, "HudAppearance", "opacity"), 82))),
+    scale: Math.max(80, Math.min(130, intValue(iniGet(ini, "HudAppearance", "scale"), 100))),
+    offsetX: Math.max(-240, Math.min(240, intValue(iniGet(ini, "HudAppearance", "offsetX"), 0))),
+    offsetY: Math.max(-240, Math.min(240, intValue(iniGet(ini, "HudAppearance", "offsetY"), 0))),
   };
 }
 
@@ -392,6 +405,108 @@ function saveBindings(payload) {
   return readState("已保存用户技能和装备快捷键。");
 }
 
+function physicalClientToDipBounds(session) {
+  const displays = screen.getAllDisplays();
+  const display = displays.find((candidate) => {
+    const factor = candidate.scaleFactor || 1;
+    const left = candidate.bounds.x * factor;
+    const top = candidate.bounds.y * factor;
+    return session.left >= left
+      && session.left < left + candidate.bounds.width * factor
+      && session.top >= top
+      && session.top < top + candidate.bounds.height * factor;
+  }) || screen.getPrimaryDisplay();
+  const factor = display.scaleFactor || 1;
+  return {
+    x: Math.round(display.bounds.x + (session.left - display.bounds.x * factor) / factor),
+    y: Math.round(display.bounds.y + (session.top - display.bounds.y * factor) / factor),
+    width: Math.max(1, Math.round(session.width / factor)),
+    height: Math.max(1, Math.round(session.height / factor)),
+  };
+}
+
+function readHudPayload() {
+  const ini = parseIni(configPath());
+  return {
+    appearance: readHudAppearance(ini),
+  };
+}
+
+function createHudWindow() {
+  hudWindow = new BrowserWindow({
+    show: false,
+    frame: false,
+    transparent: true,
+    focusable: false,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
+    hasShadow: false,
+    backgroundColor: "#00000000",
+    webPreferences: {
+      preload: path.join(__dirname, "hud-preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      backgroundThrottling: false,
+    },
+  });
+  hudWindow.setIgnoreMouseEvents(true, { forward: true });
+  hudWindow.setAlwaysOnTop(true, "screen-saver", 1);
+  hudWindow.loadFile(path.join(uiRoot(), "hud.html"));
+  hudWindow.webContents.on("did-finish-load", () => {
+    lastHudSignature = "";
+    syncHudWindow();
+  });
+  if (process.env.FIREWILL_HUD_SCREENSHOT) {
+    hudWindow.webContents.once("did-finish-load", () => {
+      setTimeout(async () => {
+        syncHudWindow();
+        const image = await hudWindow.webContents.capturePage();
+        fs.writeFileSync(process.env.FIREWILL_HUD_SCREENSHOT, image.toPNG());
+        app.quit();
+      }, 900);
+    });
+  }
+  hudWindow.on("closed", () => { hudWindow = null; });
+}
+
+function syncHudWindow() {
+  if (!hudWindow || hudWindow.isDestroyed()) return;
+  if (hudWindow.webContents.isLoadingMainFrame()) return;
+  const session = readGameSession();
+  const payload = readHudPayload();
+  const preview = Boolean(process.env.FIREWILL_HUD_PREVIEW);
+  const shouldShow = preview || (
+    payload.appearance.enabled
+    && session.active
+    && session.width >= 640
+    && session.height >= 480
+  );
+
+  if (!shouldShow) {
+    if (hudWindow.isVisible()) hudWindow.hide();
+    return;
+  }
+
+  payload.preview = preview;
+  const bounds = preview
+    ? { x: 80, y: 80, width: 1280, height: 720 }
+    : physicalClientToDipBounds(session);
+  const currentBounds = hudWindow.getBounds();
+  if (JSON.stringify(currentBounds) !== JSON.stringify(bounds)) {
+    hudWindow.setBounds(bounds, false);
+  }
+  const signature = JSON.stringify(payload);
+  if (signature !== lastHudSignature) {
+    lastHudSignature = signature;
+    hudWindow.webContents.send("hud:state", payload);
+  }
+  if (!hudWindow.isVisible()) hudWindow.showInactive();
+}
+
 function launchBackend(options = {}) {
   const executable = path.join(runtimeRoot(), "war3_macro_gui.exe");
   if (!fs.existsSync(executable)) return readState("找不到内置 AHK 执行器。");
@@ -452,6 +567,7 @@ function createWindow() {
   mainWindow = window;
   window.on("closed", () => {
     mainWindow = null;
+    if (hudWindow && !hudWindow.isDestroyed()) hudWindow.close();
   });
   window.webContents.on("before-input-event", (event, input) => {
     if (!input.control || input.type !== "keyDown") return;
@@ -521,13 +637,16 @@ app.whenReady().then(() => {
     return percent;
   });
   createWindow();
+  createHudWindow();
+  hudSyncTimer = setInterval(syncHudWindow, 100);
   globalShortcut.register("F9", requestGameInitialization);
-  if (!process.env.FIREWILL_SCREENSHOT) {
+  if (!process.env.FIREWILL_SCREENSHOT && !process.env.FIREWILL_HUD_PREVIEW) {
     setTimeout(() => launchBackend({ background: true }), 500);
   }
 });
 
 app.on("window-all-closed", () => {
+  if (hudSyncTimer) clearInterval(hudSyncTimer);
   if (process.platform !== "darwin") app.quit();
 });
 

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fire Will HUD</title>
+    <link rel="stylesheet" href="./styles/hud.css" />
+  </head>
+  <body>
+    <div id="hud-root" class="hud-root" aria-hidden="true">
+      <div class="bottom-rail">
+        <div class="rail-thread rail-thread-top"></div>
+        <div class="rail-thread rail-thread-bottom"></div>
+        <span class="rail-emblem">火之意志</span>
+      </div>
+
+      <section class="ornament-frame map-frame">
+        <i class="frame-corner corner-nw"></i>
+        <i class="frame-corner corner-ne"></i>
+        <i class="frame-corner corner-sw"></i>
+        <i class="frame-corner corner-se"></i>
+      </section>
+
+      <section class="ornament-frame command-frame">
+        <div id="ability-grid" class="ability-grid"></div>
+        <i class="frame-corner corner-nw"></i>
+        <i class="frame-corner corner-ne"></i>
+        <i class="frame-corner corner-sw"></i>
+        <i class="frame-corner corner-se"></i>
+        <span class="chakra-mark chakra-mark-left"></span>
+        <span class="chakra-mark chakra-mark-right"></span>
+      </section>
+    </div>
+    <script src="./scripts/hud.js"></script>
+  </body>
+</html>
