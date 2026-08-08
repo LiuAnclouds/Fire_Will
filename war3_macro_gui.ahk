@@ -80,6 +80,7 @@ gameSession := Map(
     "dpi", 96,
     "gameBase", 0,
     "gameModuleName", "",
+    "clickMode", "screen",
     "state", "未初始化",
     "message", "请先绑定并初始化游戏窗口。",
     "active", false,
@@ -153,6 +154,7 @@ sessionActiveLast := -1
 sessionBoundsLast := ""
 initializeRequestSeen := ""
 shutdownRequestSeen := ""
+sessionInitializing := false
 autoInitLastAttempt := 0
 autoInitRetryMs := 5000
 autoInitPid := 0
@@ -181,6 +183,9 @@ if !headlessMode {
 }
 ApplyFlowHotkeys()
 OnExit HandleScriptExit
+if headlessMode {
+    WriteGameSession("idle", "后台已启动，等待 War3 游戏窗口。", false)
+}
 if HasCommandLineArg("--initialize") {
     SetTimer InitializeGameSession, -350
 }
@@ -515,7 +520,7 @@ PollInitializeRequest(*) {
 AutoInitializeGameSession(*) {
     global gameSession, autoInitLastAttempt, autoInitRetryMs, autoInitPid, autoInitAttempts, autoInitMaxAttempts
 
-    if gameSession["ready"] || (autoInitAttempts > 0 && !IsProjectionConfigured()) {
+    if gameSession["ready"] {
         return
     }
 
@@ -542,17 +547,13 @@ AutoInitializeGameSession(*) {
         return
     }
 
-    if !FindRemoteModuleBase(pid, "Game.dll") {
-        return
-    }
-
     autoInitLastAttempt := now
     autoInitAttempts += 1
     InitializeGameSession()
 }
 
 PollShutdownRequest(*) {
-    global shutdownRequestPath, shutdownRequestSeen
+    global shutdownRequestPath, shutdownRequestSeen, parentPid
     try request := Trim(FileRead(shutdownRequestPath))
     catch {
         return
@@ -561,6 +562,15 @@ PollShutdownRequest(*) {
         return
     }
     shutdownRequestSeen := request
+    ; Packaged backends only accept shutdown from the Electron process that
+    ; launched them. This prevents an accidentally opened older release from
+    ; killing the current backend through the shared request file.
+    if parentPid > 0 {
+        if !RegExMatch(request, "-(\d+)$", &requestMatch)
+            || ToInt(requestMatch[1], 0) != parentPid {
+            return
+        }
+    }
     ExitApp
 }
 
@@ -3061,6 +3071,9 @@ HandleScriptExit(exitReason, exitCode) {
     global gameSession, sessionPath
     try {
         if gameSession["bound"] {
+            gameSession["bound"] := false
+            gameSession["ready"] := false
+            gameSession["active"] := false
             WriteGameSession("closed", "Fire Will 后台已关闭。", false)
         }
     }
@@ -3072,7 +3085,13 @@ HandleScriptExit(exitReason, exitCode) {
 }
 
 InitializeGameSession(*) {
-    global gameSession, gameWindowMatcher, worldProjection, cameraLocked
+    global gameSession, gameWindowMatcher, worldProjection, cameraLocked, sessionInitializing
+
+    if sessionInitializing {
+        return false
+    }
+    sessionInitializing := true
+    try {
 
     cameraLocked := false
     gameSession["bound"] := false
@@ -3110,18 +3129,15 @@ InitializeGameSession(*) {
     gameSession["clientWidth"] := metrics["width"]
     gameSession["clientHeight"] := metrics["height"]
     gameSession["dpi"] := metrics["dpi"]
-    gameSession["gameBase"] := FindRemoteModuleBaseWithRetry(pid, "Game.dll", 2000)
+    ; The current profiles do not contain camera projection offsets. Do not
+    ; block basic macros on a module that cannot be used without those values.
+    gameSession["gameBase"] := IsProjectionConfigured()
+        ? FindRemoteModuleBaseWithRetry(pid, "Game.dll", 500)
+        : 0
     gameSession["gameModuleName"] := gameSession["gameBase"] ? "Game.dll" : ""
+    gameSession["clickMode"] := "screen"
     gameSession["ready"] := false
     gameSession["projectionReady"] := false
-
-    if !gameSession["gameBase"] {
-        message := "游戏窗口已绑定；Game.dll 读取失败，NPC 世界坐标点击暂不可用。"
-        WriteGameSession("bound", message, false)
-        SetStatus(message)
-        ShowGameTip("游戏窗口已绑定`n等待 Game.dll", 1800)
-        return false
-    }
 
     if !LockHeroAndCamera() {
         message := "窗口已绑定，但无法向游戏发送 F1 完成人物和镜头锁定。"
@@ -3131,29 +3147,35 @@ InitializeGameSession(*) {
         return false
     }
 
-    if !IsProjectionConfigured() {
-        message := "本局初始化未完成：世界坐标投影参数不完整。"
-        WriteGameSession("bound", message, false)
+    gameSession["ready"] := true
+    if !gameSession["gameBase"] || !IsProjectionConfigured() {
+        message := gameSession["gameBase"]
+            ? "初始化完成：人物及镜头已锁定；世界投影未配置，使用兼容坐标模式。"
+            : "初始化完成：人物及镜头已锁定；Game.dll 不可用，使用兼容坐标模式。"
+        WriteGameSession("ready", message, false)
         SetStatus(message)
-        ShowGameTip("初始化未完成`n投影参数不完整", 2200)
-        return false
+        ShowGameTip("初始化已完成`n兼容坐标模式", 2200)
+        return true
     }
 
     if !RefreshCameraSnapshot() {
-        message := "本局初始化未完成：无法读取当前镜头参数。请确认权限和地图版本。"
-        WriteGameSession("bound", message, false)
+        message := "初始化完成：镜头内存参数不可用，已切换兼容坐标模式。"
+        WriteGameSession("ready", message, false)
         SetStatus(message)
-        ShowGameTip("初始化未完成`n无法读取镜头参数", 2200)
-        return false
+        ShowGameTip("初始化已完成`n兼容坐标模式", 2200)
+        return true
     }
 
-    gameSession["ready"] := true
     gameSession["projectionReady"] := true
+    gameSession["clickMode"] := "world"
     message := "本局初始化完成：窗口、客户区、DPI、Game.dll 和镜头投影均可用。"
     WriteGameSession("ready", message, true)
     SetStatus(message)
     ShowGameTip("初始化已完成`n人物及镜头已锁定", 2200)
     return true
+    } finally {
+        sessionInitializing := false
+    }
 }
 
 LockHeroAndCamera() {
@@ -3468,8 +3490,8 @@ ClickWorldNpc(npcName) {
     if !RefreshBoundWindowState() {
         return false
     }
-    if !npcs.Has(npcName) || npcs[npcName]["worldX"] = "" || npcs[npcName]["worldY"] = "" {
-        SetStatus("NPC没有世界坐标配置：" npcName "。")
+    if !npcs.Has(npcName) {
+        SetStatus("NPC配置不存在：" npcName "。")
         return false
     }
     ; F9 and F2/F3 already lock the hero camera. Only use the old two-F1
@@ -3485,18 +3507,31 @@ ClickWorldNpc(npcName) {
         ActionDelayMs(HeroCameraSettleDurationMs())
         cameraLocked := true
     }
-    if !IsProjectionConfigured() || !WorldToClient(npcs[npcName]["worldX"], npcs[npcName]["worldY"], &clientX, &clientY) {
-        SetStatus("NPC不在当前可点击视野内，未发送鼠标点击：" npcName "。")
-        return false
+    if gameSession["projectionReady"]
+        && npcs[npcName]["worldX"] != ""
+        && npcs[npcName]["worldY"] != ""
+        && IsProjectionConfigured()
+        && WorldToClient(npcs[npcName]["worldX"], npcs[npcName]["worldY"], &clientX, &clientY) {
+        ; The projected point is the snap target. The radius scales with the
+        ; client height, so 1080p/2K/4K keep the same physical hit tolerance.
+        snapRadius := GetNpcSnapRadius()
+        clientX := Clamp(Round(clientX), snapRadius, gameSession["clientWidth"] - snapRadius)
+        clientY := Clamp(Round(clientY), snapRadius, gameSession["clientHeight"] - snapRadius)
+        screenX := gameSession["clientLeft"] + clientX
+        screenY := gameSession["clientTop"] + clientY
+        return ClickNpcScreenPoint(screenX, screenY)
     }
 
-    ; The projected point is the snap target. The radius scales with the
-    ; client height, so 1080p/2K/4K keep the same physical hit tolerance.
-    snapRadius := GetNpcSnapRadius()
-    clientX := Clamp(Round(clientX), snapRadius, gameSession["clientWidth"] - snapRadius)
-    clientY := Clamp(Round(clientY), snapRadius, gameSession["clientHeight"] - snapRadius)
-    screenX := gameSession["clientLeft"] + clientX
-    screenY := gameSession["clientTop"] + clientY
+    npc := npcs[npcName]
+    if !IsPointConfigured(npc["x"], npc["y"]) {
+        SetStatus("NPC兼容坐标缺失：" npcName "。")
+        return false
+    }
+    gameSession["clickMode"] := "screen"
+    return ClickNpcScreenPoint(Integer(npc["x"]), Integer(npc["y"]))
+}
+
+ClickNpcScreenPoint(screenX, screenY) {
     MouseMove screenX, screenY, 0
     MouseMoveDelay()
     if !GameLeftClick() {
@@ -3528,6 +3563,7 @@ WriteGameSession(state, message, projectionReady := false) {
     IniWrite(gameSession["active"] ? 1 : 0, sessionPath, "Session", "active")
     IniWrite(gameSession["gameBase"] ? Format("0x{:X}", gameSession["gameBase"]) : "", sessionPath, "Session", "moduleBase")
     IniWrite(gameSession["gameModuleName"], sessionPath, "Session", "moduleName")
+    IniWrite(gameSession["clickMode"], sessionPath, "Session", "clickMode")
     IniWrite(projectionReady ? 1 : 0, sessionPath, "Session", "projectionReady")
     IniWrite(FormatTime(A_Now, "yyyy-MM-dd HH:mm:ss"), sessionPath, "Session", "updatedAt")
 }

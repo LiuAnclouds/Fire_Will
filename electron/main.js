@@ -21,6 +21,12 @@ let hudWindow = null;
 let hudSyncTimer = null;
 let lastHudSignature = "";
 let backendProcess = null;
+let ownsBackend = false;
+let appIsQuitting = false;
+let backendLastError = "";
+let backendRestartTimer = null;
+let backendRestartAttempts = 0;
+let backendStartedAt = 0;
 const singleInstanceLock = app.requestSingleInstanceLock();
 const iniCache = new Map();
 
@@ -89,6 +95,10 @@ function shutdownRequestPath() {
 
 function requestGameInitialization() {
   try {
+    if (!isBackendRunning()) {
+      backendRestartAttempts = 0;
+      launchBackend({ background: true });
+    }
     fs.writeFileSync(initializeRequestPath(), `${Date.now()}-${process.pid}`, "utf8");
     return readState("已请求 F9 初始化，正在绑定当前 War3 窗口。");
   } catch (error) {
@@ -160,6 +170,9 @@ function readGameSession() {
     ready: session.ready === "1",
     state: session.state || "未初始化",
     message: session.message || "请先绑定并初始化游戏窗口。",
+    backendRunning: isBackendRunning(),
+    backendError: backendLastError,
+    clickMode: session.clickMode || "screen",
     projectionReady: session.projectionReady === "1",
     active: session.active === "1",
     left: intValue(session.clientLeft, 0),
@@ -512,11 +525,12 @@ function launchBackend(options = {}) {
   const executable = path.join(runtimeRoot(), "war3_macro_gui.exe");
   if (!fs.existsSync(executable)) return readState("找不到内置 AHK 执行器。");
 
-  if (backendProcess && backendProcess.exitCode === null && !backendProcess.killed) {
+  if (isBackendRunning()) {
     return readState("内置 AHK 执行器已在运行。");
   }
 
   try {
+    fs.rmSync(shutdownRequestPath(), { force: true });
     const args = options.initialize
       ? ["--initialize"]
       : options.background
@@ -531,12 +545,36 @@ function launchBackend(options = {}) {
       stdio: "ignore",
       windowsHide: true,
     });
+    ownsBackend = true;
+    backendLastError = "";
+    backendStartedAt = Date.now();
+    const launchedProcess = backendProcess;
+    setTimeout(() => {
+      if (backendProcess === launchedProcess && isBackendRunning()) {
+        backendRestartAttempts = 0;
+      }
+    }, 5000);
     backendProcess.once("error", (error) => {
+      backendLastError = error.message;
       backendProcess = null;
-      readState("启动内置 AHK 执行器失败：" + error.message);
+      ownsBackend = false;
     });
-    backendProcess.once("exit", () => {
+    backendProcess.once("exit", (code) => {
+      const uptime = Date.now() - backendStartedAt;
       backendProcess = null;
+      ownsBackend = false;
+      if (!appIsQuitting) {
+        backendLastError = `后台执行器已退出（代码 ${code ?? "未知"}）`;
+        backendRestartAttempts = uptime >= 5000 ? 1 : backendRestartAttempts + 1;
+        if (backendRestartAttempts <= 3) {
+          clearTimeout(backendRestartTimer);
+          backendRestartTimer = setTimeout(() => {
+            if (!appIsQuitting && !isBackendRunning()) {
+              launchBackend({ background: true });
+            }
+          }, 300);
+        }
+      }
     });
     backendProcess.unref();
     return readState(options.initialize
@@ -547,6 +585,10 @@ function launchBackend(options = {}) {
   } catch (error) {
     return readState("启动 AHK 执行器失败：" + error.message);
   }
+}
+
+function isBackendRunning() {
+  return Boolean(backendProcess && backendProcess.exitCode === null && !backendProcess.killed);
 }
 
 function createWindow() {
@@ -646,13 +688,24 @@ app.whenReady().then(() => {
   }
 });
 
+app.on("second-instance", () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+});
+
 app.on("window-all-closed", () => {
   if (hudSyncTimer) clearInterval(hudSyncTimer);
   if (process.platform !== "darwin") app.quit();
 });
 
 app.on("will-quit", () => {
-  requestBackendShutdown();
+  appIsQuitting = true;
+  clearTimeout(backendRestartTimer);
+  if (singleInstanceLock && ownsBackend) {
+    requestBackendShutdown();
+  }
   if (backendProcess && backendProcess.exitCode === null) {
     backendProcess.unref();
   }

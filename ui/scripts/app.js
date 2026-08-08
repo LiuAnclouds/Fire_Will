@@ -12,15 +12,19 @@ function setStatus(text) {
 }
 
 function renderGameSession(session = {}) {
-  const stateText = session.bound && !session.ready
-    ? "已绑定 · 等待初始化完成"
+  const stateText = session.backendRunning === false
+    ? "后台未运行"
+    : session.state === "closed"
+    ? "后台已关闭"
     : session.ready
-    ? (session.projectionReady ? "已初始化 · 投影可用" : "已绑定 · 等待镜头校验")
+    ? (session.projectionReady ? "已初始化 · 世界坐标" : "已初始化 · 兼容坐标")
+    : session.bound
+    ? "已绑定 · 初始化未完成"
     : (session.state || "未初始化");
   const node = $("game-session-state");
   if (node) {
     node.textContent = stateText;
-    node.title = session.message || "";
+    node.title = session.backendError || session.message || "";
     node.dataset.ready = session.ready ? "1" : "0";
   }
 }
