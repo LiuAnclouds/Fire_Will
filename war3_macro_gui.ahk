@@ -153,6 +153,8 @@ sessionActiveLast := -1
 sessionBoundsLast := ""
 initializeRequestSeen := ""
 shutdownRequestSeen := ""
+autoInitLastAttempt := 0
+autoInitRetryMs := 5000
 parentPid := ToInt(GetCommandLineArgValue("--parent-pid"), 0)
 activeKeyCapture := ""
 keyCaptureMouseHotkeys := ["*XButton1", "*XButton2", "*MButton"]
@@ -170,6 +172,7 @@ if !headlessMode {
     SetTimer PollConfigChanges, 250
     SetTimer PollGameWindowState, 250
     SetTimer PollInitializeRequest, 100
+    SetTimer AutoInitializeGameSession, 1000
     SetTimer PollShutdownRequest, 100
     SetTimer PollParentProcess, 500
 }
@@ -503,6 +506,32 @@ PollInitializeRequest(*) {
         return
     }
     initializeRequestSeen := request
+    InitializeGameSession()
+}
+
+AutoInitializeGameSession(*) {
+    global gameSession, autoInitLastAttempt, autoInitRetryMs
+
+    if gameSession["ready"] || !IsProjectionConfigured() {
+        return
+    }
+
+    now := A_TickCount
+    if (now - autoInitLastAttempt) < autoInitRetryMs {
+        return
+    }
+
+    hwnd := GetBoundGameHwnd()
+    if !hwnd {
+        return
+    }
+
+    pid := GetWindowPid(hwnd)
+    if !pid || !FindRemoteModuleBase(pid, "Game.dll") {
+        return
+    }
+
+    autoInitLastAttempt := now
     InitializeGameSession()
 }
 
@@ -3071,10 +3100,10 @@ InitializeGameSession(*) {
     gameSession["projectionReady"] := false
 
     if !gameSession["gameBase"] {
-        message := "游戏窗口已绑定，CD 叠加可用；Game.dll 读取失败，NPC 世界坐标点击暂不可用。"
+        message := "游戏窗口已绑定；Game.dll 读取失败，NPC 世界坐标点击暂不可用。"
         WriteGameSession("bound", message, false)
         SetStatus(message)
-        ShowGameTip("游戏窗口已绑定`nCD 叠加可用", 1800)
+        ShowGameTip("游戏窗口已绑定`n等待 Game.dll", 1800)
         return false
     }
 

@@ -13,7 +13,7 @@ function setStatus(text) {
 
 function renderGameSession(session = {}) {
   const stateText = session.bound && !session.ready
-    ? "已绑定 · CD叠加可用"
+    ? "已绑定 · 等待初始化完成"
     : session.ready
     ? (session.projectionReady ? "已初始化 · 投影可用" : "已绑定 · 等待镜头校验")
     : (session.state || "未初始化");
