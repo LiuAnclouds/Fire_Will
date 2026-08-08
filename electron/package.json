@@ -1,6 +1,6 @@
 {
   "name": "fire-will-portable",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "description": "Fire Will portable Warcraft III workflow companion",
   "author": "Fire Will",
   "main": "main.js",
@@ -38,7 +38,6 @@
     ],
     "win": {
       "requestedExecutionLevel": "requireAdministrator",
-      "signAndEditExecutable": false,
       "target": [
         {
           "target": "portable",
@@ -48,6 +47,9 @@
         }
       ],
       "icon": "../icon.ico"
+    },
+    "portable": {
+      "requestExecutionLevel": "admin"
     }
   }
 }
