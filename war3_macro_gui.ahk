@@ -3306,7 +3306,7 @@ FindRemoteModuleBase(pid, moduleName) {
     try {
         ; MODULEENTRY32W is architecture-dependent. The old fixed 1080-byte
         ; buffer made Module32FirstW reject every 64-bit helper process.
-        entrySize := A_PtrSize = 8 ? 568 : 548
+        entrySize := A_PtrSize = 8 ? 1080 : 1064
         baseOffset := A_PtrSize = 8 ? 24 : 20
         nameOffset := A_PtrSize = 8 ? 48 : 32
         entry := Buffer(entrySize, 0)
