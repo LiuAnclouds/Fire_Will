@@ -13,6 +13,16 @@ Warcraft III / 羁绊 I visual macro configurator.
 - `recognition_probe.py`：识别测试辅助脚本
 - `docs/`：安装使用说明与执行逻辑说明
 
+目录职责：
+
+- `electron/`：Electron 主进程、内置 AHK 后端和便携 EXE 构建目录
+- `ui/`：配置器页面、游戏栏目外观层和背景资源
+- `profiles/`：开发期英雄配置档案
+- `maps/`：地图 NPC 世界坐标索引
+- `info/`：识别参考截图
+- `scripts/diagnostics/`：不会参与运行的诊断脚本
+- `third_party/`：本地编译所需的第三方运行时和工具包
+
 ## 本地运行
 
 安装 AutoHotkey v2 后，可以直接运行：

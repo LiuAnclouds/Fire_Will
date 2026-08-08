@@ -35,6 +35,17 @@ Desktop.ini
 electron/node_modules/
 electron/dist/
 !electron/backend/war3_macro_gui.exe
+electron/dist-admin/
+**/war3_session.ini
+
+# Local probe dumps and UI comparison captures
+/tools/
+/app/
+/native/
+/crop-*.png
+/current-ui*.png
+/v2-*.png
+/ui-transparent.png
 
 # Native probe captures are machine/session specific.
 native/probe/*.json
