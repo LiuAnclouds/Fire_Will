@@ -20,6 +20,7 @@ let mainWindow = null;
 let hudWindow = null;
 let hudSyncTimer = null;
 let lastHudSignature = "";
+let backendProcess = null;
 const singleInstanceLock = app.requestSingleInstanceLock();
 const iniCache = new Map();
 
@@ -511,39 +512,37 @@ function launchBackend(options = {}) {
   const executable = path.join(runtimeRoot(), "war3_macro_gui.exe");
   if (!fs.existsSync(executable)) return readState("找不到内置 AHK 执行器。");
 
+  if (backendProcess && backendProcess.exitCode === null && !backendProcess.killed) {
+    return readState("内置 AHK 执行器已在运行。");
+  }
+
   try {
     const args = options.initialize
       ? ["--initialize"]
       : options.background
         ? ["--background", "--parent-pid", String(process.pid)]
         : [];
-    let child;
-    if (options.initialize || options.elevated) {
-      // Memory/session initialization needs the same elevation as the game.
-      const fileArg = "'" + executable.replace(/'/g, "''") + "'";
-      const argumentList = args.length
-        ? " -ArgumentList @(" + args.map((arg) => "'" + arg + "'").join(",") + ")"
-        : "";
-      const command = "Start-Process -FilePath " + fileArg + " -Verb RunAs" + argumentList + " -WindowStyle Hidden";
-      child = spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command], {
-        cwd: runtimeRoot(),
-        detached: true,
-        stdio: "ignore",
-        windowsHide: true,
-      });
-    } else {
-      child = spawn(executable, args, {
-        cwd: runtimeRoot(),
-        detached: true,
-        stdio: "ignore",
-        windowsHide: false,
-      });
-    }
-    child.unref();
+    // The portable wrapper and the Electron process are already elevated.
+    // Spawn AHK directly so there is only one backend process and no extra
+    // PowerShell/RunAs layer that can outlive the UI.
+    backendProcess = spawn(executable, args, {
+      cwd: runtimeRoot(),
+      detached: false,
+      stdio: "ignore",
+      windowsHide: true,
+    });
+    backendProcess.once("error", (error) => {
+      backendProcess = null;
+      readState("启动内置 AHK 执行器失败：" + error.message);
+    });
+    backendProcess.once("exit", () => {
+      backendProcess = null;
+    });
+    backendProcess.unref();
     return readState(options.initialize
-      ? "已请求管理员权限，正在绑定并初始化游戏窗口。"
+      ? "正在绑定并初始化游戏窗口。"
       : options.background
-        ? "自动初始化后台执行器已启动，F9 可手动重试。"
+        ? "内置 AHK 执行器已启动，F9 可手动重试。"
         : "已启动内置 AHK 执行器。");
   } catch (error) {
     return readState("启动 AHK 执行器失败：" + error.message);
@@ -654,5 +653,8 @@ app.on("window-all-closed", () => {
 
 app.on("will-quit", () => {
   requestBackendShutdown();
+  if (backendProcess && backendProcess.exitCode === null) {
+    backendProcess.unref();
+  }
   globalShortcut.unregisterAll();
 });
