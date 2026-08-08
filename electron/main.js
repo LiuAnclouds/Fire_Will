@@ -428,7 +428,7 @@ function launchBackend(options = {}) {
     return readState(options.initialize
       ? "已请求管理员权限，正在绑定并初始化游戏窗口。"
       : options.background
-        ? "F9 初始化热键执行器已启动。"
+        ? "自动初始化后台执行器已启动，F9 可手动重试。"
         : "已启动内置 AHK 执行器。");
   } catch (error) {
     return readState("启动 AHK 执行器失败：" + error.message);

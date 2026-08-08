@@ -3229,19 +3229,19 @@ RefreshBoundWindowState() {
     global gameSession
     hwnd := gameSession["hwnd"]
     if !hwnd || !WinExist("ahk_id " hwnd) {
-        InvalidateGameSession("游戏窗口已关闭或句柄已失效，请重新按 F9 初始化。")
+        InvalidateGameSession("游戏窗口已关闭或句柄已失效，程序会自动重新绑定，也可按 F9。")
         return false
     }
 
     pid := GetWindowPid(hwnd)
     if !pid || pid != gameSession["pid"] {
-        InvalidateGameSession("War3 进程已变化，请重新按 F9 初始化。")
+        InvalidateGameSession("War3 进程已变化，程序会自动重新绑定，也可按 F9。")
         return false
     }
 
     metrics := ReadGameClientMetrics(hwnd)
     if !metrics.Has("width") || metrics["width"] <= 0 || metrics["height"] <= 0 {
-        InvalidateGameSession("无法读取当前游戏客户区，请重新按 F9 初始化。")
+        InvalidateGameSession("无法读取当前游戏客户区，程序会自动重新绑定，也可按 F9。")
         return false
     }
 
@@ -3441,7 +3441,7 @@ GetNpcSnapRadius() {
 ClickWorldNpc(npcName) {
     global npcs, gameSession, worldProjection, cameraLocked
     if !gameSession["ready"] {
-        SetStatus("本局尚未初始化，请先点“绑定游戏窗口并初始化”。")
+        SetStatus("本局正在自动初始化；如未完成，可按 F9 或点击“绑定游戏窗口并初始化”。")
         return false
     }
     if !RefreshBoundWindowState() {
