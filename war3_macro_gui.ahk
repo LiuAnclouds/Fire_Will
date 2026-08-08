@@ -3304,20 +3304,25 @@ FindRemoteModuleBase(pid, moduleName) {
         return 0
     }
     try {
-        entry := Buffer(1080, 0)
-        NumPut("uint", 1080, entry, 0)
+        ; MODULEENTRY32W is architecture-dependent. The old fixed 1080-byte
+        ; buffer made Module32FirstW reject every 64-bit helper process.
+        entrySize := A_PtrSize = 8 ? 568 : 548
+        baseOffset := A_PtrSize = 8 ? 24 : 20
+        nameOffset := A_PtrSize = 8 ? 48 : 32
+        entry := Buffer(entrySize, 0)
+        NumPut("uint", entrySize, entry, 0)
         if !DllCall("kernel32\Module32FirstW", "ptr", snapshot, "ptr", entry) {
             return 0
         }
         loop {
-            currentName := StrGet(entry.Ptr + 32, 256, "UTF-16")
+            currentName := StrGet(entry.Ptr + nameOffset, 256, "UTF-16")
             if StrLower(currentName) = StrLower(moduleName) {
-                return NumGet(entry, 24, "uint")
+                return NumGet(entry, baseOffset, A_PtrSize = 8 ? "ptr" : "uint")
             }
             if !DllCall("kernel32\Module32NextW", "ptr", snapshot, "ptr", entry) {
                 break
             }
-            NumPut("uint", 1080, entry, 0)
+            NumPut("uint", entrySize, entry, 0)
         }
     } finally {
         DllCall("CloseHandle", "ptr", snapshot)
