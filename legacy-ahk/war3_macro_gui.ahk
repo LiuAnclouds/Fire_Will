@@ -3008,31 +3008,31 @@ FindRemoteModuleBase(pid, moduleName) {
 
     ; Psapi can reject a 32-bit target from a 64-bit caller. Toolhelp32 uses
     ; the target's MODULEENTRY32W layout and works for both architectures.
-    snapshot := DllCall("kernel32\CreateToolhelp32Snapshot", "uint", 0x18, "uint", pid, "ptr")
-    if !snapshot || snapshot = -1 {
-        return 0
-    }
-    try {
-        entrySize := A_PtrSize = 8 ? 1080 : 1064
-        baseOffset := A_PtrSize = 8 ? 24 : 20
-        nameOffset := A_PtrSize = 8 ? 48 : 32
-        entry := Buffer(entrySize, 0)
-        NumPut("uint", entrySize, entry, 0)
-        if !DllCall("kernel32\Module32FirstW", "ptr", snapshot, "ptr", entry) {
-            return 0
+    layouts := [[1080, 48, 24, "ptr"], [1064, 32, 20, "uint"]]
+    for layout in layouts {
+        snapshot := DllCall("kernel32\CreateToolhelp32Snapshot", "uint", 0x18, "uint", pid, "ptr")
+        if !snapshot || snapshot = -1 {
+            continue
         }
-        loop {
-            currentName := StrGet(entry.Ptr + nameOffset, 256, "UTF-16")
-            if StrLower(currentName) = StrLower(moduleName) {
-                return NumGet(entry, baseOffset, A_PtrSize = 8 ? "ptr" : "uint")
+        try {
+            entry := Buffer(layout[1], 0)
+            NumPut("uint", layout[1], entry, 0)
+            if !DllCall("kernel32\Module32FirstW", "ptr", snapshot, "ptr", entry) {
+                continue
             }
-            if !DllCall("kernel32\Module32NextW", "ptr", snapshot, "ptr", entry) {
-                break
+            loop {
+                currentName := StrGet(entry.Ptr + layout[2], 256, "UTF-16")
+                if StrLower(currentName) = StrLower(moduleName) {
+                    return NumGet(entry, layout[3], layout[4])
+                }
+                if !DllCall("kernel32\Module32NextW", "ptr", snapshot, "ptr", entry) {
+                    break
+                }
+                NumPut("uint", layout[1], entry, 0)
             }
-            NumPut("uint", entrySize, entry, 0)
+        } finally {
+            DllCall("CloseHandle", "ptr", snapshot)
         }
-    } finally {
-        DllCall("CloseHandle", "ptr", snapshot)
     }
     return 0
 }
