@@ -62,6 +62,12 @@ public sealed class MainWindowState : BindableObject
                     $"装备 {index}",
                     () => configuration.KeyMap.Items[index - 1],
                     value => configuration.KeyMap.Items[index - 1] = LegacyNormalization.Key(value))));
+        SkillMappingsForDisplay =
+        [
+            .. SkillMappings.Skip(8).Take(4),
+            .. SkillMappings.Skip(4).Take(4),
+            .. SkillMappings.Take(4),
+        ];
 
         foreach (var farm in Farms)
         {
@@ -107,6 +113,8 @@ public sealed class MainWindowState : BindableObject
     public ObservableCollection<NpcRowViewModel> Npcs { get; }
 
     public ObservableCollection<KeyMappingRowViewModel> SkillMappings { get; }
+
+    public IReadOnlyList<KeyMappingRowViewModel> SkillMappingsForDisplay { get; }
 
     public ObservableCollection<KeyMappingRowViewModel> ItemMappings { get; }
 

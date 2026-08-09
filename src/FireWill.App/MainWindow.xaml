@@ -225,20 +225,53 @@
         </DataTemplate>
 
         <DataTemplate x:Key="KeyMapTemplate">
-            <StackPanel Margin="0,0,12,12">
-                <TextBlock Margin="0,0,0,4"
-                           Foreground="{StaticResource TextSecondaryBrush}"
-                           Text="{Binding Label}" />
-                <StackPanel Orientation="Horizontal">
-                    <TextBox Width="92"
-                             Style="{StaticResource CompactTextBox}"
+            <Border Width="108"
+                    Height="108"
+                    Margin="7,6"
+                    HorizontalAlignment="Center"
+                    Background="#B814171A"
+                    BorderBrush="#D6A8782E"
+                    BorderThickness="2"
+                    CornerRadius="1"
+                    SnapsToDevicePixels="True">
+                <Grid Margin="4">
+                    <Border BorderBrush="#705F4B2B"
+                            BorderThickness="1"
+                            CornerRadius="1"
+                            IsHitTestVisible="False" />
+                    <TextBlock Margin="7,5,7,0"
+                               HorizontalAlignment="Left"
+                               VerticalAlignment="Top"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Foreground="#FFFFD987"
+                               Text="{Binding Label}" />
+                    <TextBox Width="72"
+                             Height="36"
+                             HorizontalAlignment="Center"
+                             VerticalAlignment="Center"
+                             Padding="3,2"
+                             FontSize="15"
+                             FontWeight="Bold"
+                             TextAlignment="Center"
+                             Background="#B20B0F12"
+                             BorderBrush="#A981693D"
+                             CaretBrush="#FFFFE7A6"
                              Text="{Binding Key, UpdateSourceTrigger=PropertyChanged}" />
-                    <Button Style="{StaticResource SmallButton}"
+                    <Button Width="30"
+                            Height="24"
+                            MinHeight="24"
+                            Margin="0,0,6,5"
+                            Padding="0"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Bottom"
+                            Background="#DD24262A"
+                            BorderBrush="#C9B07B31"
                             Content="采"
-                            ToolTip="采集映射键"
+                            ToolTip="采集按键"
                             Click="CaptureMappedKey_Click" />
-                </StackPanel>
-            </StackPanel>
+                </Grid>
+            </Border>
         </DataTemplate>
     </Window.Resources>
 
@@ -271,19 +304,75 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <StackPanel VerticalAlignment="Center">
-                        <TextBlock FontFamily="{StaticResource BrandFont}"
-                                   FontSize="31"
-                                   FontWeight="SemiBold"
-                                   Foreground="{StaticResource BrandBrush}"
-                                   Text="火之意志">
-                            <TextBlock.Effect>
-                                <DropShadowEffect BlurRadius="7"
-                                                  Color="#CC000000"
-                                                  Direction="270"
-                                                  Opacity="0.8"
-                                                  ShadowDepth="2" />
-                            </TextBlock.Effect>
-                        </TextBlock>
+                        <Grid HorizontalAlignment="Left">
+                            <TextBlock x:Name="BrandGlowText"
+                                       FontFamily="{StaticResource BrandFont}"
+                                       FontSize="31"
+                                       FontWeight="SemiBold"
+                                       Foreground="#FFFF5A32"
+                                       Opacity="0.54"
+                                       Text="火之意志">
+                                <TextBlock.Effect>
+                                    <DropShadowEffect BlurRadius="14"
+                                                      Color="#FFFF3B1F"
+                                                      Direction="0"
+                                                      Opacity="0.9"
+                                                      ShadowDepth="0" />
+                                </TextBlock.Effect>
+                            </TextBlock>
+                            <TextBlock x:Name="BrandTitleText"
+                                       FontFamily="{StaticResource BrandFont}"
+                                       FontSize="31"
+                                       FontWeight="SemiBold"
+                                       SnapsToDevicePixels="True"
+                                       Text="火之意志">
+                                <TextBlock.Foreground>
+                                    <LinearGradientBrush StartPoint="0,0.5"
+                                                         EndPoint="1,0.5"
+                                                         MappingMode="RelativeToBoundingBox"
+                                                         SpreadMethod="Repeat">
+                                        <GradientStop Color="#FFFF5A32" Offset="0" />
+                                        <GradientStop Color="#FFFFB52E" Offset="0.16" />
+                                        <GradientStop Color="#FFFFF0A6" Offset="0.31" />
+                                        <GradientStop Color="#FFFFFFFF" Offset="0.43" />
+                                        <GradientStop Color="#FFFFD052" Offset="0.53" />
+                                        <GradientStop Color="#FFFF6335" Offset="0.68" />
+                                        <GradientStop Color="#FFFF3156" Offset="0.82" />
+                                        <GradientStop Color="#FFFFB52E" Offset="0.93" />
+                                        <GradientStop Color="#FFFF5A32" Offset="1" />
+                                        <LinearGradientBrush.RelativeTransform>
+                                            <TranslateTransform x:Name="BrandFlowTransform" X="-1" />
+                                        </LinearGradientBrush.RelativeTransform>
+                                    </LinearGradientBrush>
+                                </TextBlock.Foreground>
+                                <TextBlock.Effect>
+                                    <DropShadowEffect BlurRadius="7"
+                                                      Color="#E6000000"
+                                                      Direction="270"
+                                                      Opacity="0.86"
+                                                      ShadowDepth="2" />
+                                </TextBlock.Effect>
+                                <TextBlock.Triggers>
+                                    <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                        <BeginStoryboard>
+                                            <Storyboard RepeatBehavior="Forever">
+                                                <DoubleAnimation Storyboard.TargetName="BrandFlowTransform"
+                                                                 Storyboard.TargetProperty="X"
+                                                                 From="-1"
+                                                                 To="0"
+                                                                 Duration="0:0:4.2" />
+                                                <DoubleAnimation Storyboard.TargetName="BrandGlowText"
+                                                                 Storyboard.TargetProperty="Opacity"
+                                                                 From="0.42"
+                                                                 To="0.68"
+                                                                 AutoReverse="True"
+                                                                 Duration="0:0:1.8" />
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </EventTrigger>
+                                </TextBlock.Triggers>
+                            </TextBlock>
+                        </Grid>
                         <TextBlock Margin="2,1,0,0"
                                    FontFamily="{StaticResource MottoFont}"
                                    FontSize="22"
@@ -291,17 +380,21 @@
                                    SnapsToDevicePixels="True"
                                    Text="木叶飞舞之处，火亦生生不息">
                             <TextBlock.Foreground>
-                                <LinearGradientBrush StartPoint="0,0.5"
-                                                     EndPoint="1,0.5"
-                                                     MappingMode="RelativeToBoundingBox">
-                                    <GradientStop Color="#FFE7A45F" Offset="0" />
-                                    <GradientStop Color="#FFE7A45F" Offset="0.39" />
-                                    <GradientStop Color="#FFFFE9AF" Offset="0.48" />
-                                    <GradientStop Color="#FFFFF7D5" Offset="0.52" />
-                                    <GradientStop Color="#FFE7A45F" Offset="0.61" />
-                                    <GradientStop Color="#FFE7A45F" Offset="1" />
+                                    <LinearGradientBrush StartPoint="0,0.5"
+                                                         EndPoint="1,0.5"
+                                                         MappingMode="RelativeToBoundingBox"
+                                                         SpreadMethod="Repeat">
+                                    <GradientStop Color="#FFFF8A42" Offset="0" />
+                                    <GradientStop Color="#FFFFC94A" Offset="0.16" />
+                                    <GradientStop Color="#FFFFF0A2" Offset="0.31" />
+                                    <GradientStop Color="#FFFFFFFF" Offset="0.43" />
+                                    <GradientStop Color="#FFFFD767" Offset="0.53" />
+                                    <GradientStop Color="#FFFF7B45" Offset="0.68" />
+                                    <GradientStop Color="#FFFF4F5B" Offset="0.82" />
+                                    <GradientStop Color="#FFFFC94A" Offset="0.93" />
+                                    <GradientStop Color="#FFFF8A42" Offset="1" />
                                     <LinearGradientBrush.RelativeTransform>
-                                        <TranslateTransform x:Name="MottoFlowTransform" X="-1.15" />
+                                        <TranslateTransform x:Name="MottoFlowTransform" X="-1" />
                                     </LinearGradientBrush.RelativeTransform>
                                 </LinearGradientBrush>
                             </TextBlock.Foreground>
@@ -318,8 +411,8 @@
                                         <Storyboard RepeatBehavior="Forever">
                                             <DoubleAnimation Storyboard.TargetName="MottoFlowTransform"
                                                              Storyboard.TargetProperty="X"
-                                                             From="-1.15"
-                                                             To="1.15"
+                                                             From="-1"
+                                                             To="0"
                                                              Duration="0:0:3.6" />
                                         </Storyboard>
                                     </BeginStoryboard>
@@ -427,7 +520,7 @@
                                 <TextBlock Margin="12,0,0,0"
                                            VerticalAlignment="Center"
                                            Foreground="{StaticResource TextSecondaryBrush}"
-                                           Text="↑ 循环技能点 · F5 记录" />
+                                           Text="↑ 切换技能点 · F5 记录" />
                                 <Button Margin="12,0,0,0" Content="清空刷本设置" Click="ClearFarmSettings_Click" />
                             </StackPanel>
                         </Grid>
@@ -605,8 +698,8 @@
                                                VerticalAlignment="Center"
                                                Foreground="{StaticResource TextSecondaryBrush}"
                                                TextTrimming="CharacterEllipsis"
-                                               ToolTip="↓ 循环 NPC · F6 记录"
-                                               Text="↓ 循环 NPC · F6 记录" />
+                                               ToolTip="↓ 切换 NPC · F6 记录"
+                                               Text="↓ 切换 NPC · F6 记录" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="3"
                                             Orientation="Horizontal"
@@ -622,30 +715,33 @@
                                 </StackPanel>
                             </Grid>
                             <Border Grid.Row="1" Background="{StaticResource LineBrush}" />
-                            <Grid Grid.Row="2" Margin="0,20,0,0">
+                            <Grid Grid.Row="2"
+                                  Width="780"
+                                  Margin="0,20,0,0"
+                                  HorizontalAlignment="Center">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="2*" />
-                                    <ColumnDefinition Width="32" />
-                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="250" />
+                                    <ColumnDefinition Width="36" />
+                                    <ColumnDefinition Width="494" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel>
-                                    <TextBlock Style="{StaticResource SectionHeading}" Text="技能栏映射 4 x 3" />
-                                    <ItemsControl ItemsSource="{Binding SkillMappings}"
+                                    <TextBlock Style="{StaticResource SectionHeading}" Text="装备按键" />
+                                    <ItemsControl ItemsSource="{Binding ItemMappings}"
                                                   ItemTemplate="{StaticResource KeyMapTemplate}">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
-                                                <UniformGrid Columns="4" />
+                                                <UniformGrid Columns="2" />
                                             </ItemsPanelTemplate>
                                         </ItemsControl.ItemsPanel>
                                     </ItemsControl>
                                 </StackPanel>
                                 <StackPanel Grid.Column="2">
-                                    <TextBlock Style="{StaticResource SectionHeading}" Text="装备栏映射" />
-                                    <ItemsControl ItemsSource="{Binding ItemMappings}"
+                                    <TextBlock Style="{StaticResource SectionHeading}" Text="技能按键" />
+                                    <ItemsControl ItemsSource="{Binding SkillMappingsForDisplay}"
                                                   ItemTemplate="{StaticResource KeyMapTemplate}">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
-                                                <UniformGrid Columns="3" />
+                                                <UniformGrid Columns="4" />
                                             </ItemsPanelTemplate>
                                         </ItemsControl.ItemsPanel>
                                     </ItemsControl>
@@ -677,7 +773,7 @@
                     <TextBlock Grid.Column="2"
                                VerticalAlignment="Center"
                                Foreground="{StaticResource TextSecondaryBrush}"
-                               Text="v0.1.6" />
+                               Text="v0.1.7" />
                 </Grid>
             </Grid>
         </Viewbox>
