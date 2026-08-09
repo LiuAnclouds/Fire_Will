@@ -571,6 +571,7 @@ public partial class MainWindow : Window
             await _configurationAutosave.FlushAsync();
             ApplyHotkeys(_scheduler.IsEnabled);
             SetStatus($"已读取英雄配置：{profileName}");
+            ReportLegacyCoordinateStatus();
         }
         catch (Exception exception)
         {
