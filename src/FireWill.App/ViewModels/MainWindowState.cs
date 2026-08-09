@@ -25,13 +25,6 @@ public sealed class ConfigurationChangedEventArgs(ConfigurationChangeSource sour
 
 public sealed record MappedKeyOption(string DisplayName, string Reference)
 {
-    public static IReadOnlyList<MappedKeyOption> CreateAll() =>
-    [
-        new(LegacyValues.None, string.Empty),
-        .. KeyMapReferences.All().Select(reference =>
-            new MappedKeyOption(KeyMapReferences.DisplayName(reference), reference)),
-    ];
-
     public static IReadOnlyList<MappedKeyOption> CreateFor(KeyMapReferenceKind kind) =>
     [
         new(LegacyValues.None, string.Empty),
@@ -49,7 +42,6 @@ public sealed class MainWindowState : BindableObject
     public MainWindowState(MacroConfiguration configuration)
     {
         Configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
-        MappedKeyOptions = MappedKeyOption.CreateAll();
         SkillKeyOptions = MappedKeyOption.CreateFor(KeyMapReferenceKind.Skill);
         ItemKeyOptions = MappedKeyOption.CreateFor(KeyMapReferenceKind.Item);
         PreTypeOptions = [LegacyValues.None, LegacyValues.KeyPreCommand, LegacyValues.ChatPreCommand];
@@ -59,7 +51,7 @@ public sealed class MainWindowState : BindableObject
         Farms = new ObservableCollection<FarmRowViewModel>(
             LegacyCatalog.FarmNames.Select(name => new FarmRowViewModel(
                 configuration.Farms[name],
-                MappedKeyOptions)));
+                SkillKeyOptions)));
         ReleaseProfiles = new ObservableCollection<ReleaseProfileRowViewModel>(
             ReleaseProfileCatalog.Definitions.Select(definition =>
                 new ReleaseProfileRowViewModel(
@@ -158,8 +150,6 @@ public sealed class MainWindowState : BindableObject
     public IReadOnlyList<KeyMappingRowViewModel> SkillMappingsForDisplay { get; }
 
     public ObservableCollection<KeyMappingRowViewModel> ItemMappings { get; }
-
-    public IReadOnlyList<MappedKeyOption> MappedKeyOptions { get; }
 
     public IReadOnlyList<MappedKeyOption> SkillKeyOptions { get; }
 
@@ -284,7 +274,7 @@ public sealed class FarmRowViewModel : BindableObject
     private readonly FarmSettings _model;
 
     public FarmRowViewModel(FarmSettings model)
-        : this(model, MappedKeyOption.CreateAll())
+        : this(model, MappedKeyOption.CreateFor(KeyMapReferenceKind.Skill))
     {
     }
 
@@ -294,7 +284,7 @@ public sealed class FarmRowViewModel : BindableObject
     {
         _model = model ?? throw new ArgumentNullException(nameof(model));
         ArgumentNullException.ThrowIfNull(mappedKeyOptions);
-        ActionKeyOptions = AddFallbackOption(mappedKeyOptions, GetActionReference());
+        ActionKeyOptions = CreateSkillActionOptions(mappedKeyOptions, GetActionReference());
     }
 
     public event Action? ValueChanged;
@@ -331,6 +321,12 @@ public sealed class FarmRowViewModel : BindableObject
         set
         {
             var reference = KeyMapReferences.Canonicalize(value);
+            if (KeyMapReferences.TryParse(reference, out var kind, out _) &&
+                kind != KeyMapReferenceKind.Skill)
+            {
+                reference = string.Empty;
+            }
+
             var normalized = KeyMapReferences.TryGetDirect(reference, out var directKey)
                 ? directKey
                 : reference;
@@ -421,19 +417,46 @@ public sealed class FarmRowViewModel : BindableObject
     private string GetActionReference() =>
         KeyMapReferences.Canonicalize(_model.ActionKey);
 
-    private static IReadOnlyList<MappedKeyOption> AddFallbackOption(
+    private static IReadOnlyList<MappedKeyOption> CreateSkillActionOptions(
         IReadOnlyList<MappedKeyOption> options,
         string reference)
     {
-        if (reference.Length == 0 || options.Any(option =>
-                string.Equals(option.Reference, reference, StringComparison.OrdinalIgnoreCase)))
+        // A farm task starts from a skill mapping only. Filter the incoming
+        // list as well as the legacy fallback so an old item reference can
+        // never leak back into the new startup-key dropdown.
+        var result = options
+            .Where(option => IsSkillOption(option.Reference))
+            .ToList();
+
+        if (TryGetSkillReference(reference, out var skillReference) &&
+            result.All(option => !string.Equals(
+                option.Reference,
+                skillReference,
+                StringComparison.OrdinalIgnoreCase)))
         {
-            return options;
+            result.Insert(Math.Min(1, result.Count), new MappedKeyOption(
+                KeyMapReferences.DisplayName(skillReference),
+                skillReference));
         }
 
-        var result = options.ToList();
-        result.Insert(1, new MappedKeyOption(KeyMapReferences.DisplayName(reference), reference));
         return result;
+    }
+
+    private static bool IsSkillOption(string? reference) =>
+        reference?.Length == 0 || TryGetSkillReference(reference, out _);
+
+    private static bool TryGetSkillReference(string? reference, out string canonical)
+    {
+        canonical = string.Empty;
+        if (!KeyMapReferences.TryParse(reference, out var kind, out var slot) ||
+            kind != KeyMapReferenceKind.Skill ||
+            slot is < 1 or > LegacyCatalog.SkillSlotCount)
+        {
+            return false;
+        }
+
+        canonical = KeyMapReferences.Skill(slot);
+        return true;
     }
 
     private static bool IsValidRatioPair(double? x, double? y) =>

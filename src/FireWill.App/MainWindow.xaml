@@ -129,7 +129,7 @@
                           DisplayMemberPath="DisplayName"
                           SelectedValuePath="Reference"
                           SelectedValue="{Binding ActionReference, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                          ToolTip="选择刷本任务启动使用的技能或装备按键" />
+                          ToolTip="选择刷本任务启动使用的技能按键" />
             </Grid>
         </DataTemplate>
 
@@ -512,7 +512,7 @@
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Style="{StaticResource ColumnHeading}" Text="刷本任务" />
                                         <TextBlock Grid.Column="1" Style="{StaticResource ColumnHeading}" Text="任务动作" />
-                                        <TextBlock Grid.Column="2" Style="{StaticResource ColumnHeading}" Text="启动按键" />
+                                        <TextBlock Grid.Column="2" Style="{StaticResource ColumnHeading}" Text="启动技能按键" />
                                     </Grid>
                                 </Grid>
                                 <Border Grid.Column="1"

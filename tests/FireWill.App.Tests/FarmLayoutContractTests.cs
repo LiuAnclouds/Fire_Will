@@ -16,6 +16,13 @@ public sealed class FarmLayoutContractTests
             ["Q技能", "W技能", "E技能", "R技能", "D技能", "F技能", "B技能"],
             state.SkillReleaseProfiles.Select(profile => profile.Name));
         Assert.Equal(["装备1", "装备2"], state.ItemReleaseProfiles.Select(profile => profile.Name));
+        Assert.All(state.Farms, farm => Assert.Equal(13, farm.ActionKeyOptions.Count));
+        Assert.Equal(
+            ["无", .. Enumerable.Range(1, 12).Select(index => $"技能按键{index}")],
+            state.Farms[0].ActionKeyOptions.Select(option => option.DisplayName));
+        Assert.All(
+            state.Farms.SelectMany(farm => farm.ActionKeyOptions.Skip(1)),
+            option => Assert.StartsWith("skill:", option.Reference, StringComparison.Ordinal));
         Assert.All(state.SkillReleaseProfiles, profile => Assert.Equal(13, profile.KeyOptions.Count));
         Assert.All(state.ItemReleaseProfiles, profile => Assert.Equal(7, profile.KeyOptions.Count));
         Assert.Equal(
@@ -34,6 +41,7 @@ public sealed class FarmLayoutContractTests
         Assert.True(HasBinding(taskCombo, "ActionReference"));
         Assert.Equal("DisplayName", taskCombo.Attribute("DisplayMemberPath")?.Value);
         Assert.Equal("Reference", taskCombo.Attribute("SelectedValuePath")?.Value);
+        Assert.DoesNotContain("装备", (string?)taskCombo.Attribute("ToolTip"), StringComparison.Ordinal);
 
         var releaseTemplate = FindTemplate(document, presentation, "ReleaseProfileRowTemplate");
         var releaseCombo = Assert.Single(releaseTemplate.Descendants(presentation + "ComboBox"));
@@ -56,6 +64,7 @@ public sealed class FarmLayoutContractTests
         Assert.Contains("任务启动", headings);
         Assert.Contains("技能释放", headings);
         Assert.Contains("刷本任务", headings);
+        Assert.Contains("启动技能按键", headings);
         Assert.Contains("组合名称", headings);
         Assert.Contains("映射按键", headings);
         Assert.DoesNotContain(headings, value => value!.Contains("槽位", StringComparison.Ordinal));
@@ -73,7 +82,9 @@ public sealed class FarmLayoutContractTests
         Assert.Contains(flowCombos, combo => HasBinding(combo, "ReleaseProfileName"));
 
         var state = new MainWindowState(ConfigurationDefaults.Create());
-        Assert.Equal(19, state.Farms[0].ActionKeyOptions.Count);
+        Assert.DoesNotContain(
+            state.Farms[0].ActionKeyOptions,
+            option => option.Reference.StartsWith("item:", StringComparison.OrdinalIgnoreCase));
         var group = state.Flows[0].Groups[0];
         group.FarmName = state.FarmOptions[1];
         group.ReleaseProfileName = "Q技能";
@@ -83,6 +94,27 @@ public sealed class FarmLayoutContractTests
         Assert.Equal("Q技能", group.ReleaseProfileName);
         group.ReleaseProfileName = LegacyValues.None;
         Assert.Equal(LegacyValues.None, group.ReleaseProfileName);
+    }
+
+    [Fact]
+    public void FarmStartupDropdown_RejectsItemReferencesFromLegacyConfiguration()
+    {
+        var model = new FarmSettings
+        {
+            Name = "任务",
+            NpcName = "NPC",
+            NpcAction = "x5",
+            ActionKey = "item:1",
+        };
+        var viewModel = new FarmRowViewModel(model);
+
+        Assert.DoesNotContain(
+            viewModel.ActionKeyOptions,
+            option => option.Reference.StartsWith("item:", StringComparison.OrdinalIgnoreCase));
+
+        viewModel.ActionReference = "item:2";
+
+        Assert.Equal(string.Empty, model.ActionKey);
     }
 
     private static XElement FindTemplate(XDocument document, XNamespace presentation, string key) =>
