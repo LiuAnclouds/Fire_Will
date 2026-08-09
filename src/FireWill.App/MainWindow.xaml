@@ -286,10 +286,25 @@
                         </TextBlock>
                         <TextBlock Margin="2,1,0,0"
                                    FontFamily="{StaticResource MottoFont}"
-                                   FontSize="17"
+                                   FontSize="22"
                                    FontWeight="SemiBold"
-                                   Foreground="{StaticResource MottoBrush}"
+                                   SnapsToDevicePixels="True"
                                    Text="木叶飞舞之处，火亦生生不息">
+                            <TextBlock.Foreground>
+                                <LinearGradientBrush StartPoint="0,0.5"
+                                                     EndPoint="1,0.5"
+                                                     MappingMode="RelativeToBoundingBox">
+                                    <GradientStop Color="#FFE7A45F" Offset="0" />
+                                    <GradientStop Color="#FFE7A45F" Offset="0.39" />
+                                    <GradientStop Color="#FFFFE9AF" Offset="0.48" />
+                                    <GradientStop Color="#FFFFF7D5" Offset="0.52" />
+                                    <GradientStop Color="#FFE7A45F" Offset="0.61" />
+                                    <GradientStop Color="#FFE7A45F" Offset="1" />
+                                    <LinearGradientBrush.RelativeTransform>
+                                        <TranslateTransform x:Name="MottoFlowTransform" X="-1.15" />
+                                    </LinearGradientBrush.RelativeTransform>
+                                </LinearGradientBrush>
+                            </TextBlock.Foreground>
                             <TextBlock.Effect>
                                 <DropShadowEffect BlurRadius="5"
                                                   Color="#CC000000"
@@ -297,6 +312,19 @@
                                                   Opacity="0.75"
                                                   ShadowDepth="1" />
                             </TextBlock.Effect>
+                            <TextBlock.Triggers>
+                                <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                    <BeginStoryboard>
+                                        <Storyboard RepeatBehavior="Forever">
+                                            <DoubleAnimation Storyboard.TargetName="MottoFlowTransform"
+                                                             Storyboard.TargetProperty="X"
+                                                             From="-1.15"
+                                                             To="1.15"
+                                                             Duration="0:0:3.6" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </EventTrigger>
+                            </TextBlock.Triggers>
                         </TextBlock>
                     </StackPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
@@ -649,7 +677,7 @@
                     <TextBlock Grid.Column="2"
                                VerticalAlignment="Center"
                                Foreground="{StaticResource TextSecondaryBrush}"
-                               Text="v0.1.5" />
+                               Text="v0.1.6" />
                 </Grid>
             </Grid>
         </Viewbox>

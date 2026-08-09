@@ -45,7 +45,13 @@ $repoRoot = (Resolve-Path .).Path
 if (-not (Test-Path -LiteralPath (Join-Path $repoRoot "FireWill.slnx"))) {
   throw "请先切换到 Fire Will 仓库根目录。"
 }
-$publishDir = Join-Path $repoRoot "artifacts/publish/win-x64"
+$publishRoot = Join-Path $repoRoot "artifacts/publish"
+$publishDir = Join-Path $publishRoot "win-x64"
+if (Test-Path -LiteralPath $publishRoot) {
+  Get-ChildItem -LiteralPath $publishRoot -Directory |
+    Where-Object Name -ne "win-x64" |
+    Remove-Item -Recurse -Force
+}
 if (Test-Path -LiteralPath $publishDir) {
   Remove-Item -LiteralPath $publishDir -Recurse -Force
 }
@@ -54,7 +60,8 @@ dotnet publish src/FireWill.App/FireWill.App.csproj `
   -o $publishDir
 ```
 
-发布目录最终只需分发 `Fire Will.exe`。
+发布目录只保留 `artifacts/publish/win-x64` 一个目录，每次发布直接覆盖它，
+不创建带版本号或审计后缀的副本；最终只需分发其中的 `Fire Will.exe`。
 
 ## 本地数据
 
