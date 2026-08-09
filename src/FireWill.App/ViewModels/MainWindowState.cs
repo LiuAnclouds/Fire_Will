@@ -281,19 +281,47 @@ public sealed class FarmRowViewModel : BindableObject
     public string TargetX
     {
         get => Format(_model.TargetX);
-        set => SetCoordinate(value, _model.TargetX, coordinate => _model.TargetX = coordinate);
+        set => SetCoordinate(
+            value,
+            _model.TargetX,
+            coordinate =>
+            {
+                _model.TargetX = coordinate;
+                ClearTargetClientRatios();
+            });
     }
 
     public string TargetY
     {
         get => Format(_model.TargetY);
-        set => SetCoordinate(value, _model.TargetY, coordinate => _model.TargetY = coordinate);
+        set => SetCoordinate(
+            value,
+            _model.TargetY,
+            coordinate =>
+            {
+                _model.TargetY = coordinate;
+                ClearTargetClientRatios();
+            });
     }
 
-    public void SetTarget(int x, int y)
+    public void SetTarget(
+        int x,
+        int y,
+        double? clientXRatio = null,
+        double? clientYRatio = null)
     {
         _model.TargetX = x;
         _model.TargetY = y;
+        if (IsValidRatioPair(clientXRatio, clientYRatio))
+        {
+            _model.TargetClientXRatio = clientXRatio;
+            _model.TargetClientYRatio = clientYRatio;
+        }
+        else
+        {
+            ClearTargetClientRatios();
+        }
+
         OnPropertyChanged(nameof(TargetX));
         OnPropertyChanged(nameof(TargetY));
         ValueChanged?.Invoke();
@@ -306,9 +334,22 @@ public sealed class FarmRowViewModel : BindableObject
         _model.ReleaseKey = string.Empty;
         _model.TargetX = null;
         _model.TargetY = null;
+        ClearTargetClientRatios();
         OnPropertyChanged(string.Empty);
         ValueChanged?.Invoke();
     }
+
+    private void ClearTargetClientRatios()
+    {
+        _model.TargetClientXRatio = null;
+        _model.TargetClientYRatio = null;
+    }
+
+    private static bool IsValidRatioPair(double? x, double? y) =>
+        x is >= 0d and <= 1d &&
+        y is >= 0d and <= 1d &&
+        double.IsFinite(x.Value) &&
+        double.IsFinite(y.Value);
 
     private void SetNormalized(string value, string current, Action<string> setter)
     {
@@ -682,24 +723,54 @@ public sealed class NpcRowViewModel : BindableObject
 
     public event Action? ValueChanged;
 
+    public NpcSettings Model => _model;
+
     public string Name => _model.Name;
 
     public string X
     {
         get => _model.X?.ToString() ?? string.Empty;
-        set => SetCoordinate(value, _model.X, coordinate => _model.X = coordinate);
+        set => SetCoordinate(
+            value,
+            _model.X,
+            coordinate =>
+            {
+                _model.X = coordinate;
+                ClearClientRatios();
+            });
     }
 
     public string Y
     {
         get => _model.Y?.ToString() ?? string.Empty;
-        set => SetCoordinate(value, _model.Y, coordinate => _model.Y = coordinate);
+        set => SetCoordinate(
+            value,
+            _model.Y,
+            coordinate =>
+            {
+                _model.Y = coordinate;
+                ClearClientRatios();
+            });
     }
 
-    public void SetPoint(int x, int y)
+    public void SetPoint(
+        int x,
+        int y,
+        double? clientXRatio = null,
+        double? clientYRatio = null)
     {
         _model.X = x;
         _model.Y = y;
+        if (IsValidRatioPair(clientXRatio, clientYRatio))
+        {
+            _model.ClientXRatio = clientXRatio;
+            _model.ClientYRatio = clientYRatio;
+        }
+        else
+        {
+            ClearClientRatios();
+        }
+
         OnPropertyChanged(nameof(X));
         OnPropertyChanged(nameof(Y));
         ValueChanged?.Invoke();
@@ -715,11 +786,24 @@ public sealed class NpcRowViewModel : BindableObject
             _ => (null, null),
         };
         (_model.X, _model.Y) = point;
+        ClearClientRatios();
         _model.Camera = string.Empty;
         OnPropertyChanged(nameof(X));
         OnPropertyChanged(nameof(Y));
         ValueChanged?.Invoke();
     }
+
+    private void ClearClientRatios()
+    {
+        _model.ClientXRatio = null;
+        _model.ClientYRatio = null;
+    }
+
+    private static bool IsValidRatioPair(double? x, double? y) =>
+        x is >= 0d and <= 1d &&
+        y is >= 0d and <= 1d &&
+        double.IsFinite(x.Value) &&
+        double.IsFinite(y.Value);
 
     private void SetCoordinate(string value, int? current, Action<int?> setter)
     {

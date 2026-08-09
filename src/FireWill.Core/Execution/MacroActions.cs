@@ -9,7 +9,11 @@ public sealed record KeyPressAction(
     int RestMilliseconds = 0,
     bool RestIsInterruptible = true) : MacroAction;
 
-public sealed record MoveMouseAction(int X, int Y) : MacroAction;
+public sealed record MoveMouseAction(
+    int X,
+    int Y,
+    double? ClientXRatio = null,
+    double? ClientYRatio = null) : MacroAction;
 
 public sealed record LeftClickAction(int HoldMilliseconds = 10) : MacroAction;
 

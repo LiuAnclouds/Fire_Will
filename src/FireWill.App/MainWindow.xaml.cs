@@ -42,8 +42,8 @@ public partial class MainWindow : Window
     private readonly string _settingsRoot;
     private readonly string _configurationPath;
     private readonly string _profilesDirectory;
-    private readonly WindowsInputSender _inputSender = new();
     private readonly War3WindowService _gameWindow = new();
+    private readonly WindowsInputSender _inputSender;
     private readonly GameWindowAutoBinder _gameWindowAutoBinder;
     private readonly DispatcherTimer _gameBindingTimer;
     private readonly GlobalHotkeyService _hotkeys = new();
@@ -70,6 +70,8 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         _quietTip = new QuietTipService(Dispatcher);
+        _inputSender = new WindowsInputSender(
+            () => _gameWindow.TryGetBoundClientBounds(out var bounds) ? bounds : null);
 
         _settingsRoot = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -127,6 +129,7 @@ public partial class MainWindow : Window
         }
 
         AutoBindGameWindow();
+        ReportLegacyCoordinateStatus();
         _gameBindingTimer.Start();
         await InitializeBackgroundAsync();
     }
@@ -818,17 +821,23 @@ public partial class MainWindow : Window
     {
         if (sender is Button { DataContext: FarmRowViewModel farm })
         {
-            await CapturePointAfterDelayAsync(point => farm.SetTarget(point.X, point.Y), farm.Name);
+            await CapturePointAfterDelayAsync(
+                (point, xRatio, yRatio) => farm.SetTarget(point.X, point.Y, xRatio, yRatio),
+                farm.Name);
         }
     }
 
     private async void CaptureNpcPoint_Click(object sender, RoutedEventArgs e)
     {
         var npc = _state.SelectedNpc;
-        await CapturePointAfterDelayAsync(point => npc.SetPoint(point.X, point.Y), npc.Name);
+        await CapturePointAfterDelayAsync(
+            (point, xRatio, yRatio) => npc.SetPoint(point.X, point.Y, xRatio, yRatio),
+            npc.Name);
     }
 
-    private Task CapturePointAfterDelayAsync(Action<ScreenPoint> setter, string label)
+    private Task CapturePointAfterDelayAsync(
+        Action<ScreenPoint, double, double> setter,
+        string label)
     {
         lock (_pointCaptureLock)
         {
@@ -855,7 +864,7 @@ public partial class MainWindow : Window
     }
 
     private async Task CapturePointAfterDelayCoreAsync(
-        Action<ScreenPoint> setter,
+        Action<ScreenPoint, double, double> setter,
         string label,
         CancellationToken cancellationToken)
     {
@@ -874,19 +883,26 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (_inputSender.TryGetCursorPosition(out var point))
-        {
-            setter(point);
-            _state.RefreshDurations();
-            SetStatus($"已记录 {label}：{point.X}, {point.Y}");
-            ShowQuietTip($"已记录 {label}\n{point.X}, {point.Y}", 1200);
-        }
-        else
+        if (!_inputSender.TryGetCursorPosition(out var point))
         {
             var message = $"记录 {label} 失败：无法读取鼠标位置。";
             SetStatus(message);
             ShowQuietTip(message, 1400);
+            return;
         }
+
+        if (!TryNormalizeCapturedPoint(point, out var xRatio, out var yRatio, out var error))
+        {
+            var message = $"记录 {label} 失败：{error}";
+            SetStatus(message);
+            ShowQuietTip(message, 1400);
+            return;
+        }
+
+        setter(point, xRatio, yRatio);
+        _state.RefreshDurations();
+        SetStatus($"已记录 {label}：窗口自适应坐标已启用");
+        ShowQuietTip($"已记录 {label}\n窗口缩放自适应已启用", 1200);
     }
 
     private Task WaitForPointCapturesAsync()
@@ -919,7 +935,35 @@ public partial class MainWindow : Window
             cancellation?.Dispose();
             cancellation = new CancellationTokenSource();
             pendingKey = key;
-            _ = CommitSampleAfterDelayAsync(farm, key, cancellation.Token);
+            TrackPointCaptureTask(CommitSampleAfterDelayAsync(farm, key, cancellation.Token));
+        }
+    }
+
+    private void TrackPointCaptureTask(Task task)
+    {
+        lock (_pointCaptureLock)
+        {
+            _pointCaptureTasks.Add(task);
+            _ = task.ContinueWith(
+                completedTask =>
+                {
+                    lock (_pointCaptureLock)
+                    {
+                        _pointCaptureTasks.Remove(completedTask);
+                    }
+
+                    if (completedTask.IsFaulted)
+                    {
+                        var exception = completedTask.Exception?.GetBaseException();
+                        if (exception is not null && !_shutdownStarted)
+                        {
+                            SetStatus($"采点任务失败：{exception.Message}");
+                        }
+                    }
+                },
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
         }
     }
 
@@ -930,6 +974,11 @@ public partial class MainWindow : Window
             await Task.Delay(SampleDoubleTapMilliseconds, cancellationToken);
         }
         catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        if (_shutdownStarted || _windowLifetime.IsCancellationRequested)
         {
             return;
         }
@@ -968,24 +1017,74 @@ public partial class MainWindow : Window
             return;
         }
 
-        await Dispatcher.InvokeAsync(() =>
+        if (!TryNormalizeCapturedPoint(point, out var xRatio, out var yRatio, out var error))
         {
-            if (farm)
+            var message = $"采点失败：{error}";
+            SetStatus(message);
+            ShowQuietTip(message, 1400);
+            return;
+        }
+
+        if (_shutdownStarted || _windowLifetime.IsCancellationRequested)
+        {
+            return;
+        }
+
+        try
+        {
+            await Dispatcher.InvokeAsync(() =>
             {
-                var target = FarmCaptureTargetComboBox.SelectedItem as FarmRowViewModel ?? _state.Farms[0];
-                target.SetTarget(point.X, point.Y);
-                SetStatus($"已记录 {target.Name}：{point.X}, {point.Y}");
-                ShowQuietTip($"已记录 {target.Name}\n{point.X}, {point.Y}", 1200);
-            }
-            else
+                if (farm)
+                {
+                    var target = FarmCaptureTargetComboBox.SelectedItem as FarmRowViewModel ?? _state.Farms[0];
+                    target.SetTarget(point.X, point.Y, xRatio, yRatio);
+                    SetStatus($"已记录 {target.Name}：窗口自适应坐标已启用");
+                    ShowQuietTip($"已记录 {target.Name}\n窗口缩放自适应已启用", 1200);
+                }
+                else
+                {
+                    _state.SelectedNpc.SetPoint(point.X, point.Y, xRatio, yRatio);
+                    SetStatus($"已记录 {_state.SelectedNpc.Name}：窗口自适应坐标已启用");
+                    ShowQuietTip($"已记录 {_state.SelectedNpc.Name}\n窗口缩放自适应已启用", 1200);
+                }
+
+                _state.RefreshDurations();
+            });
+        }
+        catch (InvalidOperationException) when (_shutdownStarted || _windowLifetime.IsCancellationRequested)
+        {
+            // The window dispatcher can close after the final cancellation check.
+        }
+    }
+
+    private bool TryNormalizeCapturedPoint(
+        ScreenPoint point,
+        out double xRatio,
+        out double yRatio,
+        out string error)
+    {
+        if (!_gameWindow.TryGetBoundClientBounds(out var clientBounds))
+        {
+            if (!_gameWindow.TryFindAndBind(out var binding))
             {
-                _state.SelectedNpc.SetPoint(point.X, point.Y);
-                SetStatus($"已记录 {_state.SelectedNpc.Name}：{point.X}, {point.Y}");
-                ShowQuietTip($"已记录 {_state.SelectedNpc.Name}\n{point.X}, {point.Y}", 1200);
+                xRatio = 0;
+                yRatio = 0;
+                error = "尚未绑定 Warcraft III 窗口。";
+                return false;
             }
 
-            _state.RefreshDurations();
-        });
+            UpdateGameBinding(binding);
+            clientBounds = binding.ClientBounds;
+        }
+
+        if (!ClientCoordinateProjector.TryNormalize(point, clientBounds, out xRatio, out yRatio))
+        {
+            error = "鼠标不在已绑定的 Warcraft III 客户区内。";
+            return false;
+        }
+
+        error = string.Empty;
+        return true;
     }
 
     private void MoveSampleSelection(bool farm, int direction)
@@ -1054,6 +1153,27 @@ public partial class MainWindow : Window
         _waitingForGameWindow = true;
         GameBindingText.Text = "等待 War3.exe 启动";
         SetStatus("未找到 Warcraft III；游戏启动后程序会自动绑定。");
+    }
+
+    private void ReportLegacyCoordinateStatus()
+    {
+        var npcCount = _state.Npcs.Count(
+            npc => npc.Model.X is not null &&
+                   npc.Model.Y is not null &&
+                   (npc.Model.ClientXRatio is null || npc.Model.ClientYRatio is null));
+        var farmCount = _state.Farms.Count(
+            farm => farm.Model.TargetX is not null &&
+                    farm.Model.TargetY is not null &&
+                    (farm.Model.TargetClientXRatio is null || farm.Model.TargetClientYRatio is null));
+        var total = npcCount + farmCount;
+        if (total == 0)
+        {
+            return;
+        }
+
+        var message = $"有 {total} 个旧桌面坐标未启用窗口自适应，请在当前 War3 尺寸下用 F5-F8 或采点按钮重新记录。";
+        SetStatus(message);
+        ShowQuietTip("旧坐标需要重新采集一次", 3600);
     }
 
     private void GameBindingTimer_Tick(object? sender, EventArgs e)

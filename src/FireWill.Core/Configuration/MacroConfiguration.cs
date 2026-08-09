@@ -100,6 +100,10 @@ public sealed class NpcSettings
     public int? X { get; set; }
 
     public int? Y { get; set; }
+
+    public double? ClientXRatio { get; set; }
+
+    public double? ClientYRatio { get; set; }
 }
 
 public sealed class FarmSettings
@@ -119,6 +123,10 @@ public sealed class FarmSettings
     public int? TargetX { get; set; }
 
     public int? TargetY { get; set; }
+
+    public double? TargetClientXRatio { get; set; }
+
+    public double? TargetClientYRatio { get; set; }
 }
 
 public sealed class FlowSettings

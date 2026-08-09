@@ -9,11 +9,21 @@ internal sealed class TraceLog
 
 internal sealed class RecordingInput(TraceLog trace) : IInputSink
 {
+    public (int X, int Y, double? ClientXRatio, double? ClientYRatio)? LastMove { get; private set; }
+
     public void KeyDown(string key) => trace.Entries.Add($"key-down:{key}");
 
     public void KeyUp(string key) => trace.Entries.Add($"key-up:{key}");
 
-    public void MoveMouse(int x, int y) => trace.Entries.Add($"move:{x},{y}");
+    public void MoveMouse(
+        int x,
+        int y,
+        double? clientXRatio = null,
+        double? clientYRatio = null)
+    {
+        LastMove = (x, y, clientXRatio, clientYRatio);
+        trace.Entries.Add($"move:{x},{y}");
+    }
 
     public void LeftButtonDown() => trace.Entries.Add("mouse-down:left");
 

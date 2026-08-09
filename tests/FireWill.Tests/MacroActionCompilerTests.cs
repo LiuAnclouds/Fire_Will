@@ -86,6 +86,61 @@ public sealed class MacroActionCompilerTests
         Assert.DoesNotContain(compiled.Actions, action => action is MoveMouseAction or LeftClickAction);
     }
 
+    [Fact]
+    public void CompileGroup_ClientRatios_AreCarriedWithNpcAndReleaseMouseActions()
+    {
+        var configuration = CreateReleaseConfiguration();
+        var npc = configuration.Npcs["家里挑战自我NPC"];
+        npc.ClientXRatio = 0.25d;
+        npc.ClientYRatio = 0.75d;
+        var farm = configuration.Farms["家里挑战自我x5"];
+        farm.TargetClientXRatio = 0.4d;
+        farm.TargetClientYRatio = 0.6d;
+        var flow = configuration.GetFlow(1);
+        var group = flow.Groups[0];
+        group.Enabled = true;
+        group.FarmName = farm.Name;
+
+        var moves = new MacroActionCompiler()
+            .CompileGroup(configuration, flow, group)
+            .Actions
+            .OfType<MoveMouseAction>()
+            .ToArray();
+
+        Assert.Collection(
+            moves,
+            move => Assert.Equal((1131, 679, 0.25d, 0.75d), (move.X, move.Y, move.ClientXRatio, move.ClientYRatio)),
+            move => Assert.Equal((942, 705, 0.4d, 0.6d), (move.X, move.Y, move.ClientXRatio, move.ClientYRatio)));
+    }
+
+    [Fact]
+    public void CompileGroup_InvalidOrPartialClientRatioPair_FallsBackToLegacyPixels()
+    {
+        var configuration = CreateReleaseConfiguration();
+        var npc = configuration.Npcs["家里挑战自我NPC"];
+        npc.ClientXRatio = 0.5d;
+        npc.ClientYRatio = null;
+        var farm = configuration.Farms["家里挑战自我x5"];
+        farm.TargetClientXRatio = double.PositiveInfinity;
+        farm.TargetClientYRatio = 0.5d;
+        var flow = configuration.GetFlow(1);
+        var group = flow.Groups[0];
+        group.Enabled = true;
+        group.FarmName = farm.Name;
+
+        var moves = new MacroActionCompiler()
+            .CompileGroup(configuration, flow, group)
+            .Actions
+            .OfType<MoveMouseAction>()
+            .ToArray();
+
+        Assert.All(moves, move =>
+        {
+            Assert.Null(move.ClientXRatio);
+            Assert.Null(move.ClientYRatio);
+        });
+    }
+
     internal static MacroConfiguration CreateReleaseConfiguration()
     {
         var configuration = ConfigurationDefaults.Create();

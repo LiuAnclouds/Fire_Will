@@ -8,7 +8,11 @@ public interface IInputSink
 
     void KeyUp(string key);
 
-    void MoveMouse(int x, int y);
+    void MoveMouse(
+        int x,
+        int y,
+        double? clientXRatio = null,
+        double? clientYRatio = null);
 
     void LeftButtonDown();
 

@@ -196,6 +196,37 @@ public sealed class War3WindowService
         }
     }
 
+    public bool TryGetBoundClientBounds(out ScreenRectangle clientBounds)
+    {
+        War3WindowBinding? current;
+        lock (bindingLock)
+        {
+            current = binding;
+        }
+
+        if (current is null ||
+            !NativeMethods.IsWindow(current.WindowHandle) ||
+            NativeMethods.IsIconic(current.WindowHandle) ||
+            NativeMethods.GetWindowThreadProcessId(current.WindowHandle, out var processId) == 0 ||
+            processId != current.ProcessId ||
+            !TryGetClientBounds(current.WindowHandle, out clientBounds))
+        {
+            clientBounds = default;
+            return false;
+        }
+
+        lock (bindingLock)
+        {
+            if (binding?.WindowHandle == current.WindowHandle &&
+                binding.ProcessId == current.ProcessId)
+            {
+                binding = current with { ClientBounds = clientBounds };
+            }
+        }
+
+        return true;
+    }
+
     public bool TryGetClientPointOnScreen(int clientX, int clientY, out ScreenPoint point)
     {
         if (!TryGetBinding(out var current) ||

@@ -119,6 +119,9 @@ public static class LegacyIniProfileSerializer
                 : LegacyNormalization.Key(document.Get(section, "camera", npc.Camera));
             npc.X = LegacyNormalization.Coordinate(document.Get(section, "x", Format(npc.X)));
             npc.Y = LegacyNormalization.Coordinate(document.Get(section, "y", Format(npc.Y)));
+            (npc.ClientXRatio, npc.ClientYRatio) = ParseClientRatioPair(
+                document.Get(section, "clientXRatio"),
+                document.Get(section, "clientYRatio"));
 
             if (npc.X is not null && npc.Y is not null)
             {
@@ -156,6 +159,9 @@ public static class LegacyIniProfileSerializer
             farm.TargetY = ToNullableInt(
                 GetWithLegacyFallback(document, section, legacySection, "targetY", Format(farm.TargetY)),
                 farm.TargetY);
+            (farm.TargetClientXRatio, farm.TargetClientYRatio) = ParseClientRatioPair(
+                GetWithLegacyFallback(document, section, legacySection, "targetClientXRatio", string.Empty),
+                GetWithLegacyFallback(document, section, legacySection, "targetClientYRatio", string.Empty));
         }
     }
 
@@ -253,6 +259,13 @@ public static class LegacyIniProfileSerializer
         document.Set(section, "camera", npc.Name == "尾兽处追捕逃忍NPC" ? string.Empty : LegacyNormalization.Key(npc.Camera));
         document.Set(section, "x", Format(npc.X));
         document.Set(section, "y", Format(npc.Y));
+        WriteClientRatioPair(
+            document,
+            section,
+            "clientXRatio",
+            "clientYRatio",
+            npc.ClientXRatio,
+            npc.ClientYRatio);
     }
 
     private static void WriteFarm(IniDocument document, FarmSettings farm)
@@ -264,6 +277,13 @@ public static class LegacyIniProfileSerializer
         document.Set(section, "releaseKey", LegacyNormalization.ReleaseKey(releaseType, farm.ReleaseKey));
         document.Set(section, "targetX", Format(farm.TargetX));
         document.Set(section, "targetY", Format(farm.TargetY));
+        WriteClientRatioPair(
+            document,
+            section,
+            "targetClientXRatio",
+            "targetClientYRatio",
+            farm.TargetClientXRatio,
+            farm.TargetClientYRatio);
     }
 
     private static void WriteFlow(IniDocument document, FlowSettings flow)
@@ -361,6 +381,45 @@ public static class LegacyIniProfileSerializer
         return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var result) ? result : fallback;
     }
 
+    private static (double? X, double? Y) ParseClientRatioPair(string? x, string? y)
+    {
+        return TryParseClientRatio(x, out var parsedX) &&
+            TryParseClientRatio(y, out var parsedY)
+                ? (parsedX, parsedY)
+                : (null, null);
+    }
+
+    private static bool TryParseClientRatio(string? value, out double result)
+    {
+        return double.TryParse(
+                value,
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out result) &&
+            double.IsFinite(result) &&
+            result is >= 0d and <= 1d;
+    }
+
+    private static void WriteClientRatioPair(
+        IniDocument document,
+        string section,
+        string xKey,
+        string yKey,
+        double? x,
+        double? y)
+    {
+        if (x is not (>= 0d and <= 1d) ||
+            y is not (>= 0d and <= 1d) ||
+            !double.IsFinite(x.Value) ||
+            !double.IsFinite(y.Value))
+        {
+            return;
+        }
+
+        document.Set(section, xKey, Format(x));
+        document.Set(section, yKey, Format(y));
+    }
+
     private static int RoundLikeAhk(double value)
     {
         return checked((int)Math.Round(value, MidpointRounding.AwayFromZero));
@@ -375,6 +434,8 @@ public static class LegacyIniProfileSerializer
     private static string Format(int value) => value.ToString(CultureInfo.InvariantCulture);
 
     private static string Format(int? value) => value?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+
+    private static string Format(double? value) => value?.ToString("R", CultureInfo.InvariantCulture) ?? string.Empty;
 
     private static void ValidateShape(MacroConfiguration configuration)
     {

@@ -6,6 +6,24 @@ namespace FireWill.Tests;
 public sealed class FlowSchedulerGoldenTests
 {
     [Fact]
+    public async Task ExecuteFlow_ForwardsAdaptiveMouseCoordinatesToInputSink()
+    {
+        var trace = new TraceLog();
+        var input = new RecordingInput(trace);
+        var scheduler = new FlowScheduler(input, new FakeClock(trace));
+        var flow = new CompiledFlow(
+            1,
+            "adaptive",
+            Enabled: true,
+            [new CompiledGroup(1, [new MoveMouseAction(843, 413, 0.4, 0.6)], 0, 0)]);
+
+        var result = await scheduler.RunFlowAsync(flow);
+
+        Assert.Equal(FlowRunStatus.Completed, result.Status);
+        Assert.Equal((843, 413, 0.4, 0.6), input.LastMove);
+    }
+
+    [Fact]
     public async Task RunFlow_ProducesLegacyInputAndDelayOrder()
     {
         var configuration = MacroActionCompilerTests.CreateReleaseConfiguration();

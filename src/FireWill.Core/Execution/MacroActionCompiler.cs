@@ -115,7 +115,12 @@ public sealed class MacroActionCompiler
             return;
         }
 
-        builder.Add(new MoveMouseAction(npc.X.Value, npc.Y.Value));
+        var npcRatios = NormalizeClientRatios(npc.ClientXRatio, npc.ClientYRatio);
+        builder.Add(new MoveMouseAction(
+            npc.X.Value,
+            npc.Y.Value,
+            npcRatios.X,
+            npcRatios.Y));
         builder.AddCountedDelay(flow.MouseMoveDelayMs, "npc-mouse-move");
         builder.Add(new LeftClickAction());
         builder.AddCountedDelay(flow.NpcClickDelayMs, "npc-click");
@@ -166,7 +171,14 @@ public sealed class MacroActionCompiler
             flow.HeroSelectDelayMs,
             HeroSelectMinimumHoldMs,
             HeroSelectMaximumHoldMs);
-        builder.Add(new MoveMouseAction(farm.TargetX.Value, farm.TargetY.Value));
+        var targetRatios = NormalizeClientRatios(
+            farm.TargetClientXRatio,
+            farm.TargetClientYRatio);
+        builder.Add(new MoveMouseAction(
+            farm.TargetX.Value,
+            farm.TargetY.Value,
+            targetRatios.X,
+            targetRatios.Y));
         builder.AddCountedDelay(flow.ReleaseMouseMoveDelayMs, "release-mouse-move");
 
         if (LegacyNormalization.IsTeleportKey(releaseKey))
@@ -238,6 +250,16 @@ public sealed class MacroActionCompiler
         }
 
         return $"刷本项缺少释放按键或槽位映射：{farm.Name}。";
+    }
+
+    private static (double? X, double? Y) NormalizeClientRatios(double? x, double? y)
+    {
+        return x is >= 0d and <= 1d &&
+            y is >= 0d and <= 1d &&
+            double.IsFinite(x.Value) &&
+            double.IsFinite(y.Value)
+                ? (x, y)
+                : (null, null);
     }
 
     private sealed class GroupActionBuilder

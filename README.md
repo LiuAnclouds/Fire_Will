@@ -12,6 +12,7 @@ AutoHotkey v2 配置器为行为基线，重写为单进程 .NET 10 WPF 应用�
 - 12 个技能栏按键和 6 个装备栏按键映射。
 - 全局键盘、侧键和中键热键；仅在已绑定游戏窗口前台时触发。
 - F5/F6 采集与切换刷本目标，F7/F8 采集与切换 NPC。
+- 新采集的 NPC 与技能落点使用 War3 客户区比例坐标，窗口移动或等比例缩放后自动换算。
 - 单击停止，350ms 内再次按停止键恢复；退出前等待按键释放和钩子卸载。
 - 自动查找 War3、手动绑定平台窗口、前台窗口诊断和单实例运行。
 - 须佐斑、流年佐助、动态流转三种视频背景，以及透明度持久化。
@@ -56,3 +57,6 @@ dotnet publish src/FireWill.App/FireWill.App.csproj `
 - `%LOCALAPPDATA%\FireWill\background.json`
 - `%LOCALAPPDATA%\FireWill\BackgroundCache\`
 - `%LOCALAPPDATA%\FireWill\logs\`
+
+旧配置中的绝对坐标仍可直接使用。旧点位需要在原本可正常点击的 War3 窗口尺寸下重新采集一次，
+新保存的点位才会获得窗口缩放自适应能力。

@@ -20,7 +20,7 @@
     <AssemblyName>Fire Will</AssemblyName>
     <RootNamespace>FireWill.App</RootNamespace>
     <Product>Fire Will</Product>
-    <Version>0.1.2</Version>
+    <Version>0.1.3</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>..\..\assets\app\FireWill.ico</ApplicationIcon>
     <PlatformTarget>x64</PlatformTarget>

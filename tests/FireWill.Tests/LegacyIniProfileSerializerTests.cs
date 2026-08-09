@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using FireWill.Core.Configuration;
@@ -67,12 +68,16 @@ public sealed class LegacyIniProfileSerializerTests
         Assert.Equal(7, configuration.General.KeyDelayMs);
         Assert.Equal(9, configuration.General.NpcClickDelayMs);
         Assert.Equal((13, 23), (configuration.Npcs["家里挑战自我NPC"].X, configuration.Npcs["家里挑战自我NPC"].Y));
+        Assert.Null(configuration.Npcs["家里挑战自我NPC"].ClientXRatio);
+        Assert.Null(configuration.Npcs["家里挑战自我NPC"].ClientYRatio);
 
         var migratedFarm = configuration.Farms["家里挑战自我x10"];
         Assert.Equal("W", migratedFarm.ActionKey);
         Assert.Equal(LegacyValues.ItemKeyRelease, migratedFarm.ReleaseType);
         Assert.Equal("Tab", migratedFarm.ReleaseKey);
         Assert.Equal(300, migratedFarm.TargetX);
+        Assert.Null(migratedFarm.TargetClientXRatio);
+        Assert.Null(migratedFarm.TargetClientYRatio);
 
         // In the five-flow layout, old Flow.3 becomes new Flow.4.
         var flow = configuration.GetFlow(4);
@@ -85,6 +90,121 @@ public sealed class LegacyIniProfileSerializerTests
         Assert.Equal(321, flow.Groups[0].DurationMs);
         Assert.Equal("自定义流程3", configuration.GetFlow(3).Name);
         Assert.Equal("自定义流程7", configuration.GetFlow(7).Name);
+    }
+
+    [Fact]
+    public void Parse_ClientRatios_LoadsOnlyCompleteFinitePairsWithinUnitInterval()
+    {
+        const string profile = """
+            [NPC.妙木山大蛤蟆]
+            x=845
+            y=390
+            clientXRatio=0.25
+            clientYRatio=0.75
+            [NPC.妙木山挑战自我NPC]
+            clientXRatio=0.5
+            [NPC.家里挑战自我NPC]
+            clientXRatio=-0.01
+            clientYRatio=0.5
+            [NPC.家里追捕逃忍NPC]
+            clientXRatio=0.5
+            clientYRatio=1.01
+            [NPC.尾兽处追捕逃忍NPC]
+            clientXRatio=NaN
+            clientYRatio=0.5
+            [Farm.家里挑战自我x5]
+            targetX=942
+            targetY=705
+            targetClientXRatio=0
+            targetClientYRatio=1
+            [Farm.家里追捕逃忍]
+            targetClientXRatio=0.4
+            targetClientYRatio=Infinity
+            """;
+
+        var configuration = LegacyIniProfileSerializer.Parse(profile);
+
+        var validNpc = configuration.Npcs["妙木山大蛤蟆"];
+        Assert.Equal((0.25, 0.75), (validNpc.ClientXRatio, validNpc.ClientYRatio));
+        Assert.Equal((845, 390), (validNpc.X, validNpc.Y));
+        Assert.Null(configuration.Npcs["妙木山挑战自我NPC"].ClientXRatio);
+        Assert.Null(configuration.Npcs["妙木山挑战自我NPC"].ClientYRatio);
+        Assert.Null(configuration.Npcs["家里挑战自我NPC"].ClientXRatio);
+        Assert.Null(configuration.Npcs["家里挑战自我NPC"].ClientYRatio);
+        Assert.Null(configuration.Npcs["家里追捕逃忍NPC"].ClientXRatio);
+        Assert.Null(configuration.Npcs["家里追捕逃忍NPC"].ClientYRatio);
+        Assert.Null(configuration.Npcs["尾兽处追捕逃忍NPC"].ClientXRatio);
+        Assert.Null(configuration.Npcs["尾兽处追捕逃忍NPC"].ClientYRatio);
+
+        var validFarm = configuration.Farms["家里挑战自我x5"];
+        Assert.Equal((0d, 1d), (validFarm.TargetClientXRatio, validFarm.TargetClientYRatio));
+        Assert.Null(configuration.Farms["家里追捕逃忍"].TargetClientXRatio);
+        Assert.Null(configuration.Farms["家里追捕逃忍"].TargetClientYRatio);
+    }
+
+    [Fact]
+    public void Serialize_ClientRatios_UsesInvariantRoundTripFormatAndPreservesLegacyPixels()
+    {
+        var configuration = ConfigurationDefaults.Create();
+        var npc = configuration.Npcs["妙木山大蛤蟆"];
+        npc.ClientXRatio = 0.12345678901234568d;
+        npc.ClientYRatio = 0.875d;
+        var farm = configuration.Farms["家里挑战自我x5"];
+        farm.TargetX = 942;
+        farm.TargetY = 705;
+        farm.TargetClientXRatio = 0d;
+        farm.TargetClientYRatio = 1d;
+
+        var originalCulture = CultureInfo.CurrentCulture;
+        string serialized;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("fr-FR");
+            serialized = LegacyIniProfileSerializer.Serialize(configuration);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+        }
+
+        var roundTripped = LegacyIniProfileSerializer.Parse(serialized);
+
+        Assert.Contains("clientXRatio=0.12345678901234568", serialized, StringComparison.Ordinal);
+        Assert.Contains("clientYRatio=0.875", serialized, StringComparison.Ordinal);
+        Assert.Contains("targetClientXRatio=0", serialized, StringComparison.Ordinal);
+        Assert.Contains("targetClientYRatio=1", serialized, StringComparison.Ordinal);
+        Assert.Equal((845, 390), (roundTripped.Npcs["妙木山大蛤蟆"].X, roundTripped.Npcs["妙木山大蛤蟆"].Y));
+        Assert.Equal(
+            (npc.ClientXRatio, npc.ClientYRatio),
+            (roundTripped.Npcs["妙木山大蛤蟆"].ClientXRatio, roundTripped.Npcs["妙木山大蛤蟆"].ClientYRatio));
+        Assert.Equal((942, 705), (roundTripped.Farms["家里挑战自我x5"].TargetX, roundTripped.Farms["家里挑战自我x5"].TargetY));
+        Assert.Equal(
+            (farm.TargetClientXRatio, farm.TargetClientYRatio),
+            (roundTripped.Farms["家里挑战自我x5"].TargetClientXRatio, roundTripped.Farms["家里挑战自我x5"].TargetClientYRatio));
+    }
+
+    [Fact]
+    public void Serialize_InvalidOrPartialClientRatioPair_OmitsPair()
+    {
+        var configuration = ConfigurationDefaults.Create();
+        var npc = configuration.Npcs["妙木山大蛤蟆"];
+        npc.ClientXRatio = 0.5d;
+        npc.ClientYRatio = null;
+        var farm = configuration.Farms["家里挑战自我x5"];
+        farm.TargetClientXRatio = 2d;
+        farm.TargetClientYRatio = 0.5d;
+
+        var serialized = LegacyIniProfileSerializer.Serialize(configuration);
+        var roundTripped = LegacyIniProfileSerializer.Parse(serialized);
+
+        Assert.DoesNotContain("clientXRatio=", serialized, StringComparison.Ordinal);
+        Assert.DoesNotContain("clientYRatio=", serialized, StringComparison.Ordinal);
+        Assert.DoesNotContain("targetClientXRatio=", serialized, StringComparison.Ordinal);
+        Assert.DoesNotContain("targetClientYRatio=", serialized, StringComparison.Ordinal);
+        Assert.Null(roundTripped.Npcs["妙木山大蛤蟆"].ClientXRatio);
+        Assert.Null(roundTripped.Npcs["妙木山大蛤蟆"].ClientYRatio);
+        Assert.Null(roundTripped.Farms["家里挑战自我x5"].TargetClientXRatio);
+        Assert.Null(roundTripped.Farms["家里挑战自我x5"].TargetClientYRatio);
     }
 
     [Fact]

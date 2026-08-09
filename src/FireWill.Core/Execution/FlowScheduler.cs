@@ -244,7 +244,11 @@ public sealed class FlowScheduler
                 break;
 
             case MoveMouseAction move:
-                _input.MoveMouse(move.X, move.Y);
+                _input.MoveMouse(
+                    move.X,
+                    move.Y,
+                    move.ClientXRatio,
+                    move.ClientYRatio);
                 break;
 
             case LeftClickAction click:

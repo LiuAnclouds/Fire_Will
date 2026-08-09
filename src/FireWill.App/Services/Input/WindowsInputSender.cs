@@ -17,6 +17,12 @@ public enum MouseInputButton
 public sealed class WindowsInputSender : IInputSink
 {
     private readonly object sendLock = new();
+    private readonly Func<ScreenRectangle?>? clientBoundsProvider;
+
+    public WindowsInputSender(Func<ScreenRectangle?>? clientBoundsProvider = null)
+    {
+        this.clientBoundsProvider = clientBoundsProvider;
+    }
 
     public void KeyDown(ushort virtualKey) => SendKeyboardInput(virtualKey, keyUp: false);
 
@@ -126,7 +132,34 @@ public sealed class WindowsInputSender : IInputSink
         SendInputs([CreateAbsoluteMouseMove(screenX, screenY)]);
     }
 
-    public void MoveMouse(int x, int y) => MoveMouseAbsolute(x, y);
+    public void MoveMouse(
+        int x,
+        int y,
+        double? clientXRatio = null,
+        double? clientYRatio = null)
+    {
+        ScreenRectangle? clientBounds = null;
+        if (clientXRatio is not null || clientYRatio is not null)
+        {
+            if (clientXRatio is null || clientYRatio is null)
+            {
+                throw new InvalidOperationException("自适应鼠标坐标不完整，流程已停止。重新采集该点位后再试。");
+            }
+
+            clientBounds = clientBoundsProvider?.Invoke();
+            if (clientBounds is not { Width: > 0, Height: > 0 })
+            {
+                throw new InvalidOperationException("Warcraft III 窗口客户区不可用，流程已停止以避免误点。");
+            }
+        }
+
+        var target = ClientCoordinateProjector.ProjectOrFallback(
+            new ScreenPoint(x, y),
+            clientXRatio,
+            clientYRatio,
+            clientBounds);
+        MoveMouseAbsolute(target.X, target.Y);
+    }
 
     public bool TryGetCursorPosition(out ScreenPoint position)
     {
