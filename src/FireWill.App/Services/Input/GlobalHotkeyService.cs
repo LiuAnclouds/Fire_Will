@@ -3,7 +3,8 @@ namespace FireWill.App.Services.Input;
 public readonly record struct HotkeyInvocation(
     HotkeyGesture Gesture,
     uint MessageTime,
-    ScreenPoint? PointerPosition);
+    ScreenPoint? PointerPosition,
+    long Sequence);
 
 public sealed class HotkeyHandlerErrorEventArgs(
     HotkeyGesture gesture,
@@ -23,6 +24,7 @@ public sealed class GlobalHotkeyService : IDisposable, IAsyncDisposable
     private Registration[] routingSnapshot = [];
     private TaskCompletionSource? handlerDrainCompletion;
     private long nextRegistrationId;
+    private long nextInvocationSequence;
     private int pendingHandlerCount;
     private int disposed;
 
@@ -54,10 +56,17 @@ public sealed class GlobalHotkeyService : IDisposable, IAsyncDisposable
         Action<HotkeyInvocation> handler,
         bool allowAutoRepeat = false,
         bool suppressInput = true,
-        Func<bool>? isActive = null)
+        Func<bool>? isActive = null,
+        bool dispatchInline = false)
     {
         ArgumentNullException.ThrowIfNull(hotkey);
-        return Register(HotkeyGesture.Parse(hotkey), handler, allowAutoRepeat, suppressInput, isActive);
+        return Register(
+            HotkeyGesture.Parse(hotkey),
+            handler,
+            allowAutoRepeat,
+            suppressInput,
+            isActive,
+            dispatchInline);
     }
 
     public IDisposable Register(
@@ -65,7 +74,8 @@ public sealed class GlobalHotkeyService : IDisposable, IAsyncDisposable
         Action<HotkeyInvocation> handler,
         bool allowAutoRepeat = false,
         bool suppressInput = true,
-        Func<bool>? isActive = null)
+        Func<bool>? isActive = null,
+        bool dispatchInline = false)
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(handler);
@@ -77,7 +87,8 @@ public sealed class GlobalHotkeyService : IDisposable, IAsyncDisposable
             handler,
             allowAutoRepeat,
             suppressInput,
-            isActive);
+            isActive,
+            dispatchInline);
 
         lock (registrationsLock)
         {
@@ -191,7 +202,11 @@ public sealed class GlobalHotkeyService : IDisposable, IAsyncDisposable
                 .ToArray();
         }
 
-        var invocation = new HotkeyInvocation(gesture, input.MessageTime, input.Position);
+        var invocation = new HotkeyInvocation(
+            gesture,
+            input.MessageTime,
+            input.Position,
+            Interlocked.Increment(ref nextInvocationSequence));
         foreach (var registration in matching)
         {
             if (registration.IsRemoved || input.IsRepeat && !registration.AllowAutoRepeat)
@@ -201,6 +216,27 @@ public sealed class GlobalHotkeyService : IDisposable, IAsyncDisposable
 
             if (!TryBeginHandlerWork())
             {
+                continue;
+            }
+
+            if (registration.DispatchInline)
+            {
+                try
+                {
+                    if (!registration.IsRemoved)
+                    {
+                        registration.Handler(invocation);
+                    }
+                }
+                catch (Exception exception)
+                {
+                    QueueHandlerError(invocation.Gesture, exception);
+                }
+                finally
+                {
+                    EndHandlerWork();
+                }
+
                 continue;
             }
 
@@ -419,7 +455,8 @@ public sealed class GlobalHotkeyService : IDisposable, IAsyncDisposable
         Action<HotkeyInvocation> handler,
         bool allowAutoRepeat,
         bool suppressInput,
-        Func<bool>? isActive) : IDisposable
+        Func<bool>? isActive,
+        bool dispatchInline) : IDisposable
     {
         private int removed;
 
@@ -434,6 +471,8 @@ public sealed class GlobalHotkeyService : IDisposable, IAsyncDisposable
         internal bool SuppressInput { get; } = suppressInput;
 
         internal Func<bool>? IsActive { get; } = isActive;
+
+        internal bool DispatchInline { get; } = dispatchInline;
 
         internal bool IsRemoved => Volatile.Read(ref removed) != 0;
 

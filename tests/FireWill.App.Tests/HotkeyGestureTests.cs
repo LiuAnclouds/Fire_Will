@@ -57,7 +57,7 @@ public sealed class HotkeyGestureTests
     }
 
     [Fact]
-    public void Escape_IsReservedFromUserFlowAndStopBindings()
+    public void CoordinateCaptureHotkeys_AreReservedAndLegacyKeysAreFree()
     {
         var field = typeof(MainWindow).GetField(
             "ReservedHotkeys",
@@ -67,5 +67,49 @@ public sealed class HotkeyGestureTests
         var reserved = values.Select(HotkeyGesture.Parse).ToHashSet();
 
         Assert.Contains(HotkeyGesture.Parse("Esc"), reserved);
+        Assert.Contains(HotkeyGesture.Parse("F5"), reserved);
+        Assert.Contains(HotkeyGesture.Parse("F6"), reserved);
+        Assert.Contains(HotkeyGesture.Parse("Up"), reserved);
+        Assert.Contains(HotkeyGesture.Parse("Down"), reserved);
+        Assert.DoesNotContain(HotkeyGesture.Parse("F7"), reserved);
+        Assert.DoesNotContain(HotkeyGesture.Parse("F8"), reserved);
+    }
+
+    [Fact]
+    public void CoordinateCaptureHotkeyConstants_MapSkillToF5AndNpcToF6()
+    {
+        var skillField = typeof(MainWindow).GetField(
+            "SkillPointCaptureHotkey",
+            BindingFlags.NonPublic | BindingFlags.Static);
+        var npcField = typeof(MainWindow).GetField(
+            "NpcPointCaptureHotkey",
+            BindingFlags.NonPublic | BindingFlags.Static);
+        var skillSelectionField = typeof(MainWindow).GetField(
+            "SkillPointSelectionHotkey",
+            BindingFlags.NonPublic | BindingFlags.Static);
+        var npcSelectionField = typeof(MainWindow).GetField(
+            "NpcPointSelectionHotkey",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.Equal("F5", skillField?.GetRawConstantValue());
+        Assert.Equal("F6", npcField?.GetRawConstantValue());
+        Assert.Equal("Up", skillSelectionField?.GetRawConstantValue());
+        Assert.Equal("Down", npcSelectionField?.GetRawConstantValue());
+    }
+
+    [Fact]
+    public async Task InlineHotkeyDispatch_PreservesInputSequence()
+    {
+        await using var hotkeys = new GlobalHotkeyService();
+        var sequences = new List<long>();
+        hotkeys.Register(
+            "F24",
+            invocation => sequences.Add(invocation.Sequence),
+            dispatchInline: true);
+
+        hotkeys.DispatchForTesting(HotkeyGesture.Parse("F24"));
+        hotkeys.DispatchForTesting(HotkeyGesture.Parse("F24"));
+
+        Assert.Equal([1L, 2L], sequences);
     }
 }

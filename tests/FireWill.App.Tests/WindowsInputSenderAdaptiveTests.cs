@@ -63,7 +63,7 @@ public sealed class WindowsInputSenderAdaptiveTests
         var error = Assert.Throws<InvalidOperationException>(
             () => sender.MoveMouse(843, 413));
 
-        Assert.Contains("仍是旧桌面坐标", error.Message, StringComparison.Ordinal);
+        Assert.Contains("点位信息不完整", error.Message, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -88,7 +88,7 @@ public sealed class WindowsInputSenderAdaptiveTests
         var error = Assert.Throws<InvalidOperationException>(
             () => sender.MoveMouse(843, 413, 0.4, 0.6, captureAspectRatio));
 
-        Assert.Contains("缺少采集时的窗口比例", error.Message, StringComparison.Ordinal);
+        Assert.Contains("缺少窗口自适应信息", error.Message, StringComparison.Ordinal);
         Assert.False(providerCalled);
     }
 

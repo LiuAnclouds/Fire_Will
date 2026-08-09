@@ -114,8 +114,6 @@
                     <ColumnDefinition Width="145" />
                     <ColumnDefinition Width="170" />
                     <ColumnDefinition Width="145" />
-                    <ColumnDefinition Width="105" />
-                    <ColumnDefinition Width="105" />
                     <ColumnDefinition Width="130" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
@@ -147,27 +145,13 @@
                             ToolTip="采集释放键"
                             Click="CaptureFarmReleaseKey_Click" />
                 </StackPanel>
-                <TextBox Grid.Column="4"
-                          Width="88"
-                          HorizontalAlignment="Left"
-                          VerticalAlignment="Center"
-                          AutomationProperties.AutomationId="FarmTargetX"
-                          Style="{StaticResource CompactTextBox}"
-                          Text="{Binding TargetX, UpdateSourceTrigger=PropertyChanged}" />
-                <TextBox Grid.Column="5"
-                          Width="88"
-                          HorizontalAlignment="Left"
-                          VerticalAlignment="Center"
-                          AutomationProperties.AutomationId="FarmTargetY"
-                          Style="{StaticResource CompactTextBox}"
-                          Text="{Binding TargetY, UpdateSourceTrigger=PropertyChanged}" />
-                <Button Grid.Column="6"
+                <Button Grid.Column="4"
                         Width="112"
                         HorizontalAlignment="Left"
                         VerticalAlignment="Center"
                         Content="记录技能点"
                         Click="CaptureFarmPoint_Click" />
-                <TextBlock Grid.Column="7"
+                <TextBlock Grid.Column="5"
                            VerticalAlignment="Center"
                            Foreground="{StaticResource TextSecondaryBrush}"
                            Text="{Binding NpcAction}" />
@@ -387,8 +371,6 @@
                                     <ColumnDefinition Width="145" />
                                     <ColumnDefinition Width="170" />
                                     <ColumnDefinition Width="145" />
-                                    <ColumnDefinition Width="105" />
-                                    <ColumnDefinition Width="105" />
                                     <ColumnDefinition Width="130" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
@@ -396,10 +378,8 @@
                                 <TextBlock Grid.Column="1" Style="{StaticResource ColumnHeading}" Text="动作键" />
                                 <TextBlock Grid.Column="2" Style="{StaticResource ColumnHeading}" Text="释放类型" />
                                 <TextBlock Grid.Column="3" Style="{StaticResource ColumnHeading}" Text="键 / 槽位" />
-                                <TextBlock Grid.Column="4" Style="{StaticResource ColumnHeading}" Text="技能点 X" />
-                                <TextBlock Grid.Column="5" Style="{StaticResource ColumnHeading}" Text="技能点 Y" />
-                                <TextBlock Grid.Column="6" Style="{StaticResource ColumnHeading}" Text="鼠标点" />
-                                <TextBlock Grid.Column="7" Style="{StaticResource ColumnHeading}" Text="任务动作" />
+                                <TextBlock Grid.Column="4" Style="{StaticResource ColumnHeading}" Text="鼠标点" />
+                                <TextBlock Grid.Column="5" Style="{StaticResource ColumnHeading}" Text="任务动作" />
                             </Grid>
                             <ItemsControl x:Name="FarmItemsControl"
                                           Grid.Row="1"
@@ -409,12 +389,17 @@
                                         Margin="0,12,0,0"
                                         Orientation="Horizontal"
                                         HorizontalAlignment="Right">
-                                <TextBlock Margin="0,0,8,0" VerticalAlignment="Center" Text="F5/F6 技能点目标" />
+                                <TextBlock Margin="0,0,8,0" VerticalAlignment="Center" Text="技能点目标" />
                                  <ComboBox x:Name="FarmCaptureTargetComboBox"
                                            Width="220"
                                            AutomationProperties.AutomationId="FarmCaptureTarget"
                                            ItemsSource="{Binding Farms}"
-                                           DisplayMemberPath="Name" />
+                                           DisplayMemberPath="Name"
+                                           SelectionChanged="FarmCaptureTargetComboBox_SelectionChanged" />
+                                <TextBlock Margin="12,0,0,0"
+                                           VerticalAlignment="Center"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           Text="↑ 循环技能点 · F5 记录" />
                                 <Button Margin="12,0,0,0" Content="清空刷本设置" Click="ClearFarmSettings_Click" />
                             </StackPanel>
                         </Grid>
@@ -570,11 +555,7 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="70" />
                                     <ColumnDefinition Width="270" />
-                                    <ColumnDefinition Width="52" />
-                                    <ColumnDefinition Width="96" />
-                                    <ColumnDefinition Width="52" />
-                                    <ColumnDefinition Width="96" />
-                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="270" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock VerticalAlignment="Center" Text="NPC" />
@@ -583,25 +564,23 @@
                                            HorizontalAlignment="Left"
                                            AutomationProperties.AutomationId="NpcSelector"
                                            ItemsSource="{Binding Npcs}"
-                                          DisplayMemberPath="Name"
-                                          SelectedItem="{Binding SelectedNpc, Mode=TwoWay}" />
-                                <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="X" />
-                                 <TextBox Grid.Column="3"
-                                          Margin="0,39"
-                                          AutomationProperties.AutomationId="NpcTargetX"
-                                          Text="{Binding SelectedNpc.X, UpdateSourceTrigger=PropertyChanged}" />
-                                <TextBlock Grid.Column="4" VerticalAlignment="Center" Text="Y" />
-                                 <TextBox Grid.Column="5"
-                                          Margin="0,39"
-                                          AutomationProperties.AutomationId="NpcTargetY"
-                                          Text="{Binding SelectedNpc.Y, UpdateSourceTrigger=PropertyChanged}" />
-                                <Button Grid.Column="6"
-                                        Width="112"
-                                        HorizontalAlignment="Left"
-                                        VerticalAlignment="Center"
-                                        Content="记录 NPC 点"
-                                        Click="CaptureNpcPoint_Click" />
-                                <StackPanel Grid.Column="7"
+                                           DisplayMemberPath="Name"
+                                           SelectedItem="{Binding SelectedNpc, Mode=TwoWay}" />
+                                <StackPanel Grid.Column="2"
+                                            Orientation="Horizontal"
+                                            VerticalAlignment="Center">
+                                    <Button Width="112"
+                                            Content="记录 NPC 点"
+                                            Click="CaptureNpcPoint_Click" />
+                                    <TextBlock Width="174"
+                                               Margin="12,0,0,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               TextTrimming="CharacterEllipsis"
+                                               ToolTip="↓ 循环 NPC · F6 记录"
+                                               Text="↓ 循环 NPC · F6 记录" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="3"
                                             Orientation="Horizontal"
                                             HorizontalAlignment="Right"
                                             VerticalAlignment="Center">
@@ -670,7 +649,7 @@
                     <TextBlock Grid.Column="2"
                                VerticalAlignment="Center"
                                Foreground="{StaticResource TextSecondaryBrush}"
-                               Text="v0.1.4" />
+                               Text="v0.1.5" />
                 </Grid>
             </Grid>
         </Viewbox>

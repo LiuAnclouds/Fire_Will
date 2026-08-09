@@ -18,7 +18,7 @@ The complete GUI script is the product behavior oracle. The smaller NPC script r
 - Group pre-actions: none, key, or public chat.
 - Release modes: none, skill key, item key, skill slot, or item slot.
 - Screen-coordinate NPC and release targeting.
-- F5/F6 farm target capture and selection; F7/F8 NPC capture and selection.
+- F5 captures the selected farm target; F6 captures the selected NPC. Up/Down cycle the two selections, leaving F7/F8 available for user bindings.
 - Configurable stop hotkey; one tap stops and pauses, two taps within 350 ms resume.
 - Game-window gating, manual binding, clipboard window diagnostics, and skip-window-check mode.
 - UTF-8 INI and hero profile import/export without changing the legacy source files.

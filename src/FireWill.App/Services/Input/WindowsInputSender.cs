@@ -161,7 +161,7 @@ public sealed class WindowsInputSender : IInputSink
             if (captureAspectRatio is not > 0d || !double.IsFinite(captureAspectRatio.Value))
             {
                 throw new InvalidOperationException(
-                    "该点缺少采集时的窗口比例，流程已停止。请在当前版本重新录入 NPC 和技能鼠标点。");
+                    "该点缺少窗口自适应信息，流程已停止。请用 F5 或 F6 重新记录对应点位。");
             }
 
             projectionContext = projectionContextProvider?.Invoke();
@@ -188,7 +188,7 @@ public sealed class WindowsInputSender : IInputSink
         else if (adaptiveModeProvider?.Invoke() == true)
         {
             throw new InvalidOperationException(
-                "当前配置已启用窗口自适应，但这个点仍是旧桌面坐标。请重新录入对应的 NPC 和技能鼠标点。");
+                "该流程的点位信息不完整，流程已停止。请用 F5 或 F6 记录对应点位。");
         }
 
         MoveMouseAbsolute(x, y);
