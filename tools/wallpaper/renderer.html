@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1920,height=1080,initial-scale=1">
+  <title>Fire Will background offline renderer</title>
+  <style>
+    html, body { width: 1920px; height: 1080px; margin: 0; overflow: hidden; background: #02090a; }
+    canvas { display: block; width: 1920px; height: 1080px; }
+  </style>
+</head>
+<body>
+  <canvas id="wallpaper" width="1920" height="1080"></canvas>
+  <script>
+    (() => {
+      "use strict";
+
+      const canvas = document.getElementById("wallpaper");
+      const ctx = canvas.getContext("2d", { alpha: false, desynchronized: true });
+      const width = canvas.width;
+      const height = canvas.height;
+      const query = new URLSearchParams(location.search);
+      const image = new Image();
+      const baseCanvas = document.createElement("canvas");
+      const baseContext = baseCanvas.getContext("2d", { alpha: false });
+      const tau = Math.PI * 2;
+      const state = { particles: [], motes: [], ready: false };
+
+      function mulberry32(seed) {
+        return function () {
+          let t = seed += 0x6D2B79F5;
+          t = Math.imul(t ^ t >>> 15, t | 1);
+          t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+          return ((t ^ t >>> 14) >>> 0) / 4294967296;
+        };
+      }
+
+      function mod(value, divisor) {
+        return ((value % divisor) + divisor) % divisor;
+      }
+
+      function makeParticles() {
+        const random = mulberry32(3425374577);
+        state.particles = [];
+        for (let i = 0; i < 128; i += 1) {
+          state.particles.push({
+            x: random() * 1.08 - 0.04,
+            y: random() * 1.15 - 0.15,
+            fallCycles: 1 + Math.floor(random() * 3),
+            driftCycles: Math.floor(random() * 3) - 1,
+            swayCycles: 1 + Math.floor(random() * 3),
+            sway: 0.008 + random() * 0.018,
+            phase: random() * tau,
+            size: 1.4 + random() * 4.8,
+            turns: Math.floor(random() * 3) - 1,
+            angle: random() * tau,
+            alpha: 0.38 + random() * 0.56,
+            tint: random() > 0.72 ? "#ffd6e4" : "#f5fbff",
+          });
+        }
+
+        state.motes = [];
+        for (let i = 0; i < 34; i += 1) {
+          state.motes.push({
+            x: 0.25 + random() * 0.62,
+            y: 0.37 + random() * 0.58,
+            size: 0.45 + random() * 1.25,
+            phase: random() * tau,
+            cycles: 1 + Math.floor(random() * 3),
+          });
+        }
+      }
+
+      function prepareBaseImage() {
+        baseCanvas.width = width;
+        baseCanvas.height = height;
+        const scale = Math.max(width / image.naturalWidth, height / image.naturalHeight);
+        const coverWidth = image.naturalWidth * scale;
+        const coverHeight = image.naturalHeight * scale;
+        baseContext.drawImage(
+          image,
+          (width - coverWidth) * 0.5,
+          (height - coverHeight) * 0.5,
+          coverWidth,
+          coverHeight,
+        );
+      }
+
+      function drawCover(progress) {
+        const breathing = Math.sin(tau * progress) * 0.0012;
+        const x = -breathing * width;
+        const y = Math.cos(tau * progress) * 0.55;
+        ctx.drawImage(baseCanvas, x, y, width, height);
+
+        ctx.save();
+        ctx.globalAlpha = 0.44;
+        const waterTop = height * 0.30;
+        const waterBottom = height * 0.98;
+        const sliceHeight = Math.max(8, height / 90);
+        for (let dy = waterTop; dy < waterBottom; dy += sliceHeight) {
+          const wave = Math.sin(tau * (3 * progress) + dy * 0.024) *
+            (0.7 + (dy / height) * 1.8);
+          const sourceY = dy - y;
+          const sourceH = sliceHeight + 1;
+          if (sourceY < 0 || sourceY + sourceH > height) continue;
+          ctx.drawImage(
+            baseCanvas,
+            0, sourceY, width, sourceH,
+            x + wave, dy, width, sliceHeight + 1,
+          );
+        }
+        ctx.restore();
+      }
+
+      function drawAtmosphere(progress) {
+        ctx.save();
+        ctx.globalCompositeOperation = "screen";
+        const glow = ctx.createRadialGradient(
+          width * 0.52, height * 0.76, 0,
+          width * 0.52, height * 0.76, Math.max(width, height) * 0.34,
+        );
+        glow.addColorStop(0, "rgba(118, 231, 255, 0.09)");
+        glow.addColorStop(0.45, "rgba(75, 196, 230, 0.035)");
+        glow.addColorStop(1, "rgba(30, 120, 154, 0)");
+        ctx.fillStyle = glow;
+        ctx.fillRect(0, 0, width, height);
+
+        for (const mote of state.motes) {
+          const pulse = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(tau * mote.cycles * progress + mote.phase));
+          ctx.globalAlpha = 0.07 * pulse;
+          ctx.fillStyle = "#9feaff";
+          ctx.fillRect(mote.x * width, mote.y * height, mote.size, mote.size);
+        }
+        ctx.restore();
+      }
+
+      function drawParticles(progress) {
+        ctx.save();
+        ctx.globalCompositeOperation = "screen";
+        for (const particle of state.particles) {
+          const x = mod(
+            particle.x + particle.driftCycles * progress +
+              Math.sin(tau * particle.swayCycles * progress + particle.phase) * particle.sway,
+            1.2,
+          ) - 0.1;
+          const y = mod(particle.y + particle.fallCycles * progress, 1.3) - 0.1;
+          const size = particle.size * (
+            0.88 + 0.12 * Math.sin(tau * 2 * progress + particle.phase)
+          );
+          const angle = particle.angle + tau * particle.turns * progress;
+
+          // Draw neighbouring copies near the wrap boundary so looping particles do not pop.
+          for (const xOffset of [-width, 0, width]) {
+            if (x * width + xOffset < -20 || x * width + xOffset > width + 20) continue;
+            ctx.save();
+            ctx.translate(x * width + xOffset, y * height);
+            ctx.rotate(angle);
+            ctx.globalAlpha = particle.alpha;
+            ctx.fillStyle = particle.tint;
+            ctx.shadowColor = particle.tint;
+            ctx.shadowBlur = size * 1.7;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, size * 1.45, size * 0.48, 0, 0, tau);
+            ctx.fill();
+            ctx.restore();
+          }
+        }
+        ctx.restore();
+      }
+
+      function renderFrame(frameIndex, frameCount) {
+        if (!state.ready) return false;
+        const progress = mod(frameIndex, frameCount) / frameCount;
+        ctx.fillStyle = "#02090a";
+        ctx.fillRect(0, 0, width, height);
+        drawCover(progress);
+        drawAtmosphere(progress);
+        drawParticles(progress);
+        return true;
+      }
+
+      window.renderFrame = renderFrame;
+      window.recordVideo = async function recordVideo(
+        captureDurationMilliseconds,
+        loopDurationMilliseconds,
+        fps,
+        fileName,
+      ) {
+        if (!state.ready) throw new Error("renderer is not ready");
+        const mimeType = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"]
+          .find((candidate) => MediaRecorder.isTypeSupported(candidate));
+        if (!mimeType) throw new Error("this Chromium build cannot record WebM");
+
+        renderFrame(0, loopDurationMilliseconds);
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+
+        const stream = canvas.captureStream(fps);
+        const recorder = new MediaRecorder(stream, {
+          mimeType,
+          videoBitsPerSecond: 18_000_000,
+        });
+        const chunks = [];
+        const stopped = new Promise((resolve, reject) => {
+          recorder.addEventListener("dataavailable", (event) => {
+            if (event.data.size > 0) chunks.push(event.data);
+          });
+          recorder.addEventListener("error", () => reject(recorder.error || new Error("MediaRecorder failed")));
+          recorder.addEventListener("stop", resolve, { once: true });
+        });
+
+        recorder.start(500);
+        await new Promise((resolve) => {
+          let startedAt;
+          function animate(timestamp) {
+            startedAt ??= timestamp;
+            const elapsed = timestamp - startedAt;
+            renderFrame(elapsed, loopDurationMilliseconds);
+            if (elapsed < captureDurationMilliseconds) requestAnimationFrame(animate);
+            else resolve();
+          }
+          requestAnimationFrame(animate);
+        });
+        renderFrame(0, loopDurationMilliseconds);
+        await new Promise((resolve) => setTimeout(resolve, Math.ceil(1000 / fps)));
+        recorder.stop();
+        await stopped;
+        for (const track of stream.getTracks()) track.stop();
+
+        const blob = new Blob(chunks, { type: mimeType });
+        const anchor = document.createElement("a");
+        anchor.href = URL.createObjectURL(blob);
+        anchor.download = fileName;
+        anchor.click();
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        URL.revokeObjectURL(anchor.href);
+        return { byteLength: blob.size, mimeType };
+      };
+
+      image.addEventListener("load", () => {
+        prepareBaseImage();
+        makeParticles();
+        state.ready = true;
+        document.documentElement.dataset.ready = "1";
+      }, { once: true });
+      image.addEventListener("error", () => {
+        document.documentElement.dataset.ready = "error";
+      }, { once: true });
+      image.src = query.get("source") || "";
+    })();
+  </script>
+</body>
+</html>

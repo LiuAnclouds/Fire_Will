@@ -1,67 +1,58 @@
 # Fire Will
 
-Warcraft III / 羁绊 I visual macro configurator.
+Fire Will 是仅面向 Windows 的《魔兽争霸 III / 羁绊 I》流程辅助工具。本分支以原
+AutoHotkey v2 配置器为行为基线，重写为单进程 .NET 10 WPF 应用。
 
-## 开发目录
+运行时不需要 AutoHotkey、Electron、WebView2、Python 或额外 .NET Runtime，也不读取
+`Game.dll`，不访问游戏内存，不做进程注入。
 
-这个目录用于后续开发和版本管理，当前包含：
+## 当前功能
 
-- `war3_macro_gui.ahk`：主 GUI 宏配置器源码
-- `war3_npc_macro.ahk`：较早的 NPC 宏模板
-- `profiles/`：英雄/流程配置档案
-- `info/`：识别和操作参考图片
-- `recognition_probe.py`：识别测试辅助脚本
-- `docs/`：安装使用说明与执行逻辑说明
+- 7 个固定刷本项、5 个 NPC、8 个流程，每个流程最多 8 组。
+- 12 个技能栏按键和 6 个装备栏按键映射。
+- 全局键盘、侧键和中键热键；仅在已绑定游戏窗口前台时触发。
+- F5/F6 采集与切换刷本目标，F7/F8 采集与切换 NPC。
+- 单击停止，350ms 内再次按停止键恢复；退出前等待按键释放和钩子卸载。
+- 自动查找 War3、手动绑定平台窗口、前台窗口诊断和单实例运行。
+- 须佐斑、流年佐助、动态流转三种视频背景，以及透明度持久化。
+- 旧版 UTF-8 INI 和英雄配置迁移；旧源文件与原配置始终只读。
 
-目录职责：
+## 目录
 
-- `electron/`：Electron 主进程、内置 AHK 后端和便携 EXE 构建目录
-- `ui/`：配置器页面、游戏栏目外观层和背景资源
-- `profiles/`：开发期英雄配置档案
-- `maps/`：地图 NPC 世界坐标索引
-- `info/`：识别参考截图
-- `scripts/diagnostics/`：不会参与运行的诊断脚本
-- `third_party/`：本地编译所需的第三方运行时和工具包
+- `src/FireWill.Core`：配置模型、旧 INI 兼容、流程编译和执行调度。
+- `src/FireWill.App`：WPF 界面、Win32 输入、游戏窗口绑定和动态背景。
+- `tests`：兼容性黄金测试与 Windows 输入生命周期测试。
+- `assets/backgrounds`：发布时嵌入 EXE 的两段无声 H.264 视频。
+- `tools/wallpaper`：仅开发期使用的背景转换脚本和 smoke 测试。
+- `docs/compatibility-matrix.md`：本轮 1:1 兼容范围与旧版哈希。
 
-## 本地运行
+## 构建与测试
 
-安装 AutoHotkey v2 后，可以直接运行：
-
-```powershell
-.\war3_macro_gui.ahk
-```
-
-也可以双击 `启动源码宏配置器.bat`。
-
-## 新版本地客户端
-
-当前主框架为 Electron Portable，目标是打包成一个可直接双击运行的 Windows EXE。播放器、HTML/CSS UI 和本地配置桥接都包含在客户端中，不需要浏览器、WebView2、Qt 或 Python。首次启动时会把可写配置释放到当前用户的应用数据目录，后续修改不会因关闭客户端而丢失。
+需要 Windows x64 和 .NET SDK `10.0.302`，SDK 版本由 `global.json` 固定。
 
 ```powershell
-cd .\electron
-npm install
-npm start
+dotnet restore FireWill.slnx
+dotnet build FireWill.slnx -c Release --no-restore -warnaserror
+dotnet test FireWill.slnx -c Release --no-restore
+dotnet run --project tools/wallpaper/smoke-tests/BackgroundSmokeTests.csproj -c Release
 ```
 
-生成便携 EXE：
+生成低于 500MB、请求管理员权限的自包含单文件 EXE：
 
 ```powershell
-npm run dist
+dotnet publish src/FireWill.App/FireWill.App.csproj `
+  -c Release -r win-x64 --self-contained true `
+  -o artifacts/publish/win-x64
 ```
 
-主要目录：
+发布目录最终只需分发 `Fire Will.exe`。
 
-- `electron/main.js`：本地主进程、INI 读写和 AHK 执行器启动
-- `electron/preload.js`：隔离的前端/本地能力桥接
-- `electron/backend/`：内置 AHK 执行器、配置和英雄档案
-- `ui/`：全屏视频背景与按旧版 AHK `BuildGui()` 顺序迁移的配置面板
-- `legacy-ahk/`：旧 AHK 源码归档
+## 本地数据
 
-## 远程仓库
+程序不会把用户配置写回安装目录：
 
-目标远程仓库：
-
-```text
-git@github.com:LiuAnclouds/Fire_Will.git
-```
-
+- `%LOCALAPPDATA%\FireWill\war3_macro_gui.ini`
+- `%LOCALAPPDATA%\FireWill\profiles\`
+- `%LOCALAPPDATA%\FireWill\background.json`
+- `%LOCALAPPDATA%\FireWill\BackgroundCache\`
+- `%LOCALAPPDATA%\FireWill\logs\`

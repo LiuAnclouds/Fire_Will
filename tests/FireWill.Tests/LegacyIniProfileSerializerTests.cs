@@ -1,0 +1,224 @@
+using System.Security.Cryptography;
+using System.Text;
+using FireWill.Core.Configuration;
+
+namespace FireWill.Tests;
+
+public sealed class LegacyIniProfileSerializerTests
+{
+    [Fact]
+    public void Parse_CurrentProfileFields_PreservesEmptyKeyPreCommand()
+    {
+        var configuration = LegacyIniProfileSerializer.Parse(CurrentProfileFixture);
+
+        Assert.Equal("白悟空", configuration.General.CurrentProfileName);
+        Assert.Equal(5, configuration.General.KeyDelayMs);
+        Assert.Equal(15, configuration.General.SkillKeyDelayMs);
+        Assert.Equal(10, configuration.General.HeroSelectDelayMs);
+        Assert.Equal(20, configuration.General.NpcClickDelayMs);
+        Assert.Equal("XButton2", configuration.GetFlow(1).Hotkey);
+
+        var emptyPreCommand = configuration.GetFlow(1).Groups[1];
+        Assert.True(emptyPreCommand.Enabled);
+        Assert.Equal(LegacyValues.KeyPreCommand, emptyPreCommand.PreType);
+        Assert.Equal(string.Empty, emptyPreCommand.PreValue);
+        Assert.Equal("家里挑战自我x5", emptyPreCommand.FarmName);
+        Assert.Equal(280, emptyPreCommand.WaitMs);
+    }
+
+    [Fact]
+    public void Parse_LegacyFields_MigratesWithoutInventingWait()
+    {
+        const string legacy = """
+            [General]
+            commandDelayMs=7
+            clickDelayMs=9
+            stopHotkey=
+            [NPC.家里挑战自我NPC]
+            x1=10
+            y1=20
+            x2=15
+            y2=25
+            [Farm.家里挑战自我x20]
+            actionKey=W
+            releaseType=物品按键
+            releaseKey=Tab
+            targetX=300
+            targetY=400
+            [Flow.3]
+            name=双鱼四镜像（预留）
+            enabled=1
+            hotkey=Ctrl + X
+            commandDelay=11
+            clickDelay=12
+            [Flow.3.Group.1]
+            enabled=1
+            preType=无
+            preValue=
+            farm=无
+            npc=家里挑战自我NPC
+            npcAction=x20
+            duration=321
+            """;
+
+        var configuration = LegacyIniProfileSerializer.Parse(legacy);
+
+        Assert.Equal("Z", configuration.General.StopHotkey);
+        Assert.Equal(7, configuration.General.KeyDelayMs);
+        Assert.Equal(9, configuration.General.NpcClickDelayMs);
+        Assert.Equal((13, 23), (configuration.Npcs["家里挑战自我NPC"].X, configuration.Npcs["家里挑战自我NPC"].Y));
+
+        var migratedFarm = configuration.Farms["家里挑战自我x10"];
+        Assert.Equal("W", migratedFarm.ActionKey);
+        Assert.Equal(LegacyValues.ItemKeyRelease, migratedFarm.ReleaseType);
+        Assert.Equal("Tab", migratedFarm.ReleaseKey);
+        Assert.Equal(300, migratedFarm.TargetX);
+
+        // In the five-flow layout, old Flow.3 becomes new Flow.4.
+        var flow = configuration.GetFlow(4);
+        Assert.Equal("双鱼四镜像", flow.Name);
+        Assert.Equal("^X", flow.Hotkey);
+        Assert.Equal(11, flow.KeyDelayMs);
+        Assert.Equal(12, flow.NpcClickDelayMs);
+        Assert.Equal("家里挑战自我x10", flow.Groups[0].FarmName);
+        Assert.Null(flow.Groups[0].WaitMs);
+        Assert.Equal(321, flow.Groups[0].DurationMs);
+        Assert.Equal("自定义流程3", configuration.GetFlow(3).Name);
+        Assert.Equal("自定义流程7", configuration.GetFlow(7).Name);
+    }
+
+    [Fact]
+    public void Save_WritesUtf8WithoutBom_AndRoundTripsCanonicalFields()
+    {
+        var configuration = LegacyIniProfileSerializer.Parse(CurrentProfileFixture);
+        configuration.GetFlow(8).Name = "中文配置须佐斑";
+        configuration.KeyMap.Skills[0] = "Q";
+        var directory = Path.Combine(Path.GetTempPath(), $"FireWill.Tests.{Guid.NewGuid():N}");
+        var path = Path.Combine(directory, "测试.ini");
+
+        try
+        {
+            LegacyIniProfileSerializer.Save(path, configuration);
+            var bytes = File.ReadAllBytes(path);
+            Assert.False(bytes.AsSpan().StartsWith(Encoding.UTF8.Preamble));
+            Assert.Contains("中文配置须佐斑", new UTF8Encoding(false, true).GetString(bytes), StringComparison.Ordinal);
+
+            var roundTripped = LegacyIniProfileSerializer.Load(path);
+            Assert.Equal("中文配置须佐斑", roundTripped.GetFlow(8).Name);
+            Assert.Equal("Q", roundTripped.KeyMap.Skills[0]);
+            Assert.Equal("家里挑战自我x5", roundTripped.GetFlow(1).Groups[1].FarmName);
+            Assert.Equal(string.Empty, roundTripped.GetFlow(1).Groups[1].PreValue);
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void LegacyOracle_WhenPresent_LoadsEveryProfileWithoutMutation()
+    {
+        var legacyRoot = FindLegacyRoot();
+        if (legacyRoot is null)
+        {
+            return;
+        }
+
+        var paths = new[] { Path.Combine(legacyRoot, "war3_macro_gui.ini") }
+            .Concat(Directory.EnumerateFiles(Path.Combine(legacyRoot, "profiles"), "*.ini"))
+            .ToArray();
+        var hashesBefore = paths.ToDictionary(path => path, Sha256, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var path in paths)
+        {
+            var configuration = LegacyIniProfileSerializer.Load(path);
+            Assert.Equal(5, configuration.Npcs.Count);
+            Assert.Equal(7, configuration.Farms.Count);
+            Assert.Equal(8, configuration.Flows.Count);
+            Assert.All(configuration.Flows, flow => Assert.Equal(8, flow.Groups.Count));
+            Assert.Equal(12, configuration.KeyMap.Skills.Count);
+            Assert.Equal(6, configuration.KeyMap.Items.Count);
+
+            var compiler = new FireWill.Core.Execution.MacroActionCompiler();
+            for (var slot = 1; slot <= LegacyCatalog.FlowCount; slot++)
+            {
+                var compiled = compiler.CompileFlow(configuration, slot);
+                Assert.InRange(compiled.Groups.Count, 0, LegacyCatalog.GroupCount);
+            }
+        }
+
+        Assert.Equal(hashesBefore, paths.ToDictionary(path => path, Sha256, StringComparer.OrdinalIgnoreCase));
+    }
+
+    private static string Sha256(string path)
+    {
+        return Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
+    }
+
+    private static string? FindLegacyRoot()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "war3_macro_gui.ini"))
+                && Directory.Exists(Path.Combine(directory.FullName, "profiles")))
+            {
+                return directory.FullName;
+            }
+        }
+
+        return null;
+    }
+
+    private const string CurrentProfileFixture = """
+        [General]
+        stopHotkey=Z
+        currentProfileName=白悟空
+        currentProfilePath=profiles\白悟空.ini
+        keyDelayMs=5
+        skillKeyDelayMs=15
+        heroSelectDelayMs=10
+        npcClickDelayMs=20
+        chatDelayMs=1
+        teleportKeyDelayMs=200
+        mouseMoveDelayMs=30
+        releaseMouseMoveDelayMs=110
+        [NPC.家里挑战自我NPC]
+        x=1131
+        y=679
+        [Farm.家里挑战自我x5]
+        actionKey=Q
+        releaseKey=Q
+        releaseType=技能按键
+        targetX=942
+        targetY=705
+        [Flow.1]
+        name=家里开鱼双镜像
+        enabled=1
+        hotkey=XButton2
+        keyDelay=5
+        skillKeyDelay=15
+        heroSelectDelay=10
+        npcClickDelay=20
+        chatDelay=1
+        teleportKeyDelay=200
+        mouseMoveDelay=30
+        releaseMouseMoveDelay=110
+        [Flow.1.Group.1]
+        enabled=0
+        preType=无
+        preValue=
+        farm=无
+        duration=0
+        wait=0
+        [Flow.1.Group.2]
+        enabled=1
+        preType=按键
+        preValue=
+        farm=家里挑战自我x5
+        duration=510
+        wait=280
+        """;
+}

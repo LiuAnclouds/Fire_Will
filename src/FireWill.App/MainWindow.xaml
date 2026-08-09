@@ -1,0 +1,656 @@
+<Window x:Class="FireWill.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="Fire Will"
+        AutomationProperties.AutomationId="FireWillMainWindow"
+        Width="1440"
+        Height="900"
+        MinWidth="980"
+        MinHeight="640"
+        WindowStartupLocation="CenterScreen"
+        Background="#FF111316"
+        Loaded="Window_Loaded"
+        Closing="Window_Closing"
+        PreviewKeyDown="Window_PreviewKeyDown"
+        PreviewMouseDown="Window_PreviewMouseDown">
+    <Window.Resources>
+        <SolidColorBrush x:Key="LineBrush" Color="#617F8793" />
+        <SolidColorBrush x:Key="SurfaceBrush" Color="#6B17191D" />
+
+        <Style x:Key="SectionHeading" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="17" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+            <Setter Property="Margin" Value="0,0,0,12" />
+        </Style>
+
+        <Style x:Key="ColumnHeading" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <Style x:Key="SmallButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="MinWidth" Value="34" />
+            <Setter Property="MinHeight" Value="30" />
+            <Setter Property="Padding" Value="7,4" />
+            <Setter Property="Margin" Value="4,0,0,0" />
+        </Style>
+
+        <Style x:Key="CompactTextBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+            <Setter Property="MinHeight" Value="28" />
+            <Setter Property="Padding" Value="6,3" />
+        </Style>
+
+        <Style x:Key="WorkTabItem" TargetType="TabItem">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Padding" Value="20,10" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="TabBorder"
+                                Padding="{TemplateBinding Padding}"
+                                Background="Transparent"
+                                BorderBrush="Transparent"
+                                BorderThickness="0,0,0,2">
+                            <ContentPresenter ContentSource="Header"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="White" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="TabControl">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabControl">
+                        <Grid KeyboardNavigation.TabNavigation="Local">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TabPanel Grid.Row="0"
+                                      IsItemsHost="True"
+                                      Background="Transparent" />
+                            <Border Grid.Row="1"
+                                    Padding="16"
+                                    Background="{StaticResource SurfaceBrush}"
+                                    BorderBrush="{StaticResource LineBrush}"
+                                    BorderThickness="1,1,1,1"
+                                    CornerRadius="4">
+                                <ContentPresenter x:Name="PART_SelectedContentHost"
+                                                  ContentSource="SelectedContent"
+                                                  SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
+                            </Border>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <DataTemplate x:Key="FarmRowTemplate">
+            <Grid Width="1320" Height="48">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="250" />
+                    <ColumnDefinition Width="145" />
+                    <ColumnDefinition Width="170" />
+                    <ColumnDefinition Width="145" />
+                    <ColumnDefinition Width="105" />
+                    <ColumnDefinition Width="105" />
+                    <ColumnDefinition Width="130" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0"
+                           VerticalAlignment="Center"
+                           FontSize="14"
+                           Text="{Binding Name}" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBox Width="92"
+                             Style="{StaticResource CompactTextBox}"
+                             Text="{Binding ActionKey, UpdateSourceTrigger=PropertyChanged}" />
+                    <Button Style="{StaticResource SmallButton}"
+                            Content="采"
+                            ToolTip="采集动作键"
+                            Click="CaptureFarmActionKey_Click" />
+                </StackPanel>
+                <ComboBox Grid.Column="2"
+                          Width="150"
+                          HorizontalAlignment="Left"
+                          VerticalAlignment="Center"
+                          ItemsSource="{Binding DataContext.ReleaseTypeOptions, RelativeSource={RelativeSource AncestorType=Window}}"
+                          SelectedItem="{Binding ReleaseType, UpdateSourceTrigger=PropertyChanged}" />
+                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBox Width="92"
+                             Style="{StaticResource CompactTextBox}"
+                             Text="{Binding ReleaseKey, UpdateSourceTrigger=PropertyChanged}" />
+                    <Button Style="{StaticResource SmallButton}"
+                            Content="采"
+                            ToolTip="采集释放键"
+                            Click="CaptureFarmReleaseKey_Click" />
+                </StackPanel>
+                <TextBox Grid.Column="4"
+                          Width="88"
+                          HorizontalAlignment="Left"
+                          VerticalAlignment="Center"
+                          AutomationProperties.AutomationId="FarmTargetX"
+                          Style="{StaticResource CompactTextBox}"
+                          Text="{Binding TargetX, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBox Grid.Column="5"
+                          Width="88"
+                          HorizontalAlignment="Left"
+                          VerticalAlignment="Center"
+                          AutomationProperties.AutomationId="FarmTargetY"
+                          Style="{StaticResource CompactTextBox}"
+                          Text="{Binding TargetY, UpdateSourceTrigger=PropertyChanged}" />
+                <Button Grid.Column="6"
+                        Width="112"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Center"
+                        Content="采鼠标点"
+                        Click="CaptureFarmPoint_Click" />
+                <TextBlock Grid.Column="7"
+                           VerticalAlignment="Center"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           Text="{Binding NpcAction}" />
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:Key="FlowGroupTemplate">
+            <Grid Width="1320" Height="46">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="50" />
+                    <ColumnDefinition Width="68" />
+                    <ColumnDefinition Width="150" />
+                    <ColumnDefinition Width="220" />
+                    <ColumnDefinition Width="300" />
+                    <ColumnDefinition Width="120" />
+                    <ColumnDefinition Width="130" />
+                    <ColumnDefinition Width="180" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0"
+                           VerticalAlignment="Center"
+                           FontSize="14"
+                           Text="{Binding Slot}" />
+                <CheckBox Grid.Column="1"
+                          HorizontalAlignment="Left"
+                          VerticalAlignment="Center"
+                          IsChecked="{Binding Enabled, UpdateSourceTrigger=PropertyChanged}" />
+                <ComboBox Grid.Column="2"
+                          Width="130"
+                          HorizontalAlignment="Left"
+                          VerticalAlignment="Center"
+                          ItemsSource="{Binding DataContext.PreTypeOptions, RelativeSource={RelativeSource AncestorType=Window}}"
+                          SelectedItem="{Binding PreType, UpdateSourceTrigger=PropertyChanged}" />
+                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBox Width="166"
+                             Style="{StaticResource CompactTextBox}"
+                             Text="{Binding PreValue, UpdateSourceTrigger=PropertyChanged}" />
+                    <Button Style="{StaticResource SmallButton}"
+                            Content="采"
+                            ToolTip="采集组前按键"
+                            Click="CaptureGroupPreKey_Click" />
+                </StackPanel>
+                <ComboBox Grid.Column="4"
+                          Width="278"
+                          HorizontalAlignment="Left"
+                          VerticalAlignment="Center"
+                          ItemsSource="{Binding DataContext.FarmOptions, RelativeSource={RelativeSource AncestorType=Window}}"
+                          SelectedItem="{Binding FarmName, UpdateSourceTrigger=PropertyChanged}" />
+                <TextBlock Grid.Column="5"
+                           VerticalAlignment="Center"
+                           Text="{Binding UsedMilliseconds, StringFormat={}{0} ms}" />
+                <TextBlock Grid.Column="6"
+                           VerticalAlignment="Center"
+                           Text="{Binding DurationMilliseconds, StringFormat={}{0} ms}" />
+                <StackPanel Grid.Column="7" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBox Width="78"
+                             Style="{StaticResource CompactTextBox}"
+                             Text="{Binding WaitMilliseconds, UpdateSourceTrigger=LostFocus}" />
+                    <Button Style="{StaticResource SmallButton}"
+                            Content="-"
+                            Tag="-10"
+                            ToolTip="减少 10 毫秒"
+                            Click="AdjustGroupWait_Click" />
+                    <Button Style="{StaticResource SmallButton}"
+                            Content="+"
+                            Tag="10"
+                            ToolTip="增加 10 毫秒"
+                            Click="AdjustGroupWait_Click" />
+                </StackPanel>
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:Key="KeyMapTemplate">
+            <StackPanel Margin="0,0,12,12">
+                <TextBlock Margin="0,0,0,4"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           Text="{Binding Label}" />
+                <StackPanel Orientation="Horizontal">
+                    <TextBox Width="92"
+                             Style="{StaticResource CompactTextBox}"
+                             Text="{Binding Key, UpdateSourceTrigger=PropertyChanged}" />
+                    <Button Style="{StaticResource SmallButton}"
+                            Content="采"
+                            ToolTip="采集映射键"
+                            Click="CaptureMappedKey_Click" />
+                </StackPanel>
+            </StackPanel>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid>
+        <MediaElement x:Name="BackgroundVideo"
+                      LoadedBehavior="Manual"
+                      UnloadedBehavior="Manual"
+                      IsMuted="True"
+                      ScrubbingEnabled="False"
+                      Stretch="UniformToFill"
+                      IsHitTestVisible="False"
+                      MediaEnded="BackgroundVideo_MediaEnded"
+                      MediaFailed="BackgroundVideo_MediaFailed" />
+        <Border Background="#5C0A0C0F" IsHitTestVisible="False" />
+
+        <Viewbox Stretch="Uniform"
+                 StretchDirection="Both"
+                 TextElement.Foreground="{StaticResource TextPrimaryBrush}">
+            <Grid Width="1400" Height="860" Margin="20">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="72" />
+                    <RowDefinition Height="54" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="42" />
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock FontSize="28" FontWeight="SemiBold" Text="Fire Will" />
+                        <TextBlock Margin="1,3,0,0"
+                                   FontSize="12"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Text="羁绊I丶无限月读宏" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Margin="0,0,8,0" VerticalAlignment="Center" Text="动态背景" />
+                        <ComboBox x:Name="BackgroundModeComboBox"
+                                  Width="132"
+                                  DisplayMemberPath="DisplayName"
+                                  SelectedValuePath="Value"
+                                  SelectionChanged="BackgroundModeComboBox_SelectionChanged" />
+                        <TextBlock Margin="18,0,8,0" VerticalAlignment="Center" Text="透明度" />
+                        <Slider x:Name="BackgroundOpacitySlider"
+                                Width="150"
+                                Minimum="0.05"
+                                Maximum="1"
+                                SmallChange="0.05"
+                                LargeChange="0.1"
+                                ValueChanged="BackgroundOpacitySlider_ValueChanged" />
+                        <TextBlock x:Name="BackgroundOpacityText"
+                                   Width="44"
+                                   Margin="8,0,0,0"
+                                   VerticalAlignment="Center"
+                                   TextAlignment="Right"
+                                   Text="58%" />
+                    </StackPanel>
+                </Grid>
+
+                <Grid Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Margin="0,0,8,0"
+                                   VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Text="当前英雄" />
+                        <TextBlock x:Name="CurrentProfileText"
+                                   Width="150"
+                                   VerticalAlignment="Center"
+                                   FontWeight="SemiBold"
+                                   Text="默认/未读取" />
+                        <Button Margin="10,0,0,0" Content="保存配置" Click="SaveProfile_Click" />
+                        <Button Margin="8,0,0,0" Content="另存为英雄" Click="SaveProfileAs_Click" />
+                        <Button Margin="8,0,0,0" Content="读取配置" Click="LoadProfile_Click" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock x:Name="GameBindingText"
+                                   Margin="0,0,14,0"
+                                   VerticalAlignment="Center"
+                                   AutomationProperties.AutomationId="GameBindingText"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Text="游戏未绑定" />
+                        <Button Content="绑定游戏窗口" Click="BindGameWindow_Click" />
+                    </StackPanel>
+                </Grid>
+
+                <TabControl x:Name="MainTabs"
+                            Grid.Row="2"
+                            AutomationProperties.AutomationId="MainTabs">
+                    <TabItem Header="刷本设置"
+                             AutomationProperties.AutomationId="FarmTab"
+                             Style="{StaticResource WorkTabItem}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Grid Width="1320" Height="34">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="250" />
+                                    <ColumnDefinition Width="145" />
+                                    <ColumnDefinition Width="170" />
+                                    <ColumnDefinition Width="145" />
+                                    <ColumnDefinition Width="105" />
+                                    <ColumnDefinition Width="105" />
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Style="{StaticResource ColumnHeading}" Text="刷本项" />
+                                <TextBlock Grid.Column="1" Style="{StaticResource ColumnHeading}" Text="动作键" />
+                                <TextBlock Grid.Column="2" Style="{StaticResource ColumnHeading}" Text="释放类型" />
+                                <TextBlock Grid.Column="3" Style="{StaticResource ColumnHeading}" Text="键 / 槽位" />
+                                <TextBlock Grid.Column="4" Style="{StaticResource ColumnHeading}" Text="目标 X" />
+                                <TextBlock Grid.Column="5" Style="{StaticResource ColumnHeading}" Text="目标 Y" />
+                                <TextBlock Grid.Column="6" Style="{StaticResource ColumnHeading}" Text="鼠标点" />
+                                <TextBlock Grid.Column="7" Style="{StaticResource ColumnHeading}" Text="任务动作" />
+                            </Grid>
+                            <ItemsControl x:Name="FarmItemsControl"
+                                          Grid.Row="1"
+                                          ItemTemplate="{StaticResource FarmRowTemplate}"
+                                          ItemsSource="{Binding Farms}" />
+                            <StackPanel Grid.Row="2"
+                                        Margin="0,12,0,0"
+                                        Orientation="Horizontal"
+                                        HorizontalAlignment="Right">
+                                <TextBlock Margin="0,0,8,0" VerticalAlignment="Center" Text="F5/F6 目标" />
+                                 <ComboBox x:Name="FarmCaptureTargetComboBox"
+                                           Width="220"
+                                           AutomationProperties.AutomationId="FarmCaptureTarget"
+                                           ItemsSource="{Binding Farms}"
+                                           DisplayMemberPath="Name" />
+                                <Button Margin="12,0,0,0" Content="清空刷本设置" Click="ClearFarmSettings_Click" />
+                            </StackPanel>
+                        </Grid>
+                    </TabItem>
+
+                    <TabItem Header="执行流程" Style="{StaticResource WorkTabItem}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="52" />
+                                <RowDefinition Height="102" />
+                                <RowDefinition Height="34" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="64" />
+                                    <ColumnDefinition Width="160" />
+                                    <ColumnDefinition Width="54" />
+                                    <ColumnDefinition Width="190" />
+                                    <ColumnDefinition Width="70" />
+                                    <ColumnDefinition Width="180" />
+                                    <ColumnDefinition Width="86" />
+                                    <ColumnDefinition Width="180" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock VerticalAlignment="Center" Text="流程" />
+                                <ComboBox x:Name="FlowSelectorComboBox"
+                                          Grid.Column="1"
+                                          Width="148"
+                                          HorizontalAlignment="Left"
+                                          ItemsSource="{Binding Flows}"
+                                          DisplayMemberPath="DisplayName"
+                                          SelectedItem="{Binding SelectedFlow, Mode=TwoWay}" />
+                                <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="名称" />
+                                <TextBox Grid.Column="3"
+                                         Margin="0,9"
+                                         Text="{Binding SelectedFlow.Name, UpdateSourceTrigger=PropertyChanged}" />
+                                <CheckBox Grid.Column="4"
+                                          VerticalAlignment="Center"
+                                          Content="启用"
+                                          IsChecked="{Binding SelectedFlow.Enabled}" />
+                                <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBox Width="126" Text="{Binding SelectedFlow.Hotkey, UpdateSourceTrigger=PropertyChanged}" />
+                                    <Button Style="{StaticResource SmallButton}"
+                                            Content="采"
+                                            ToolTip="采集流程触发键"
+                                            Click="CaptureFlowHotkey_Click" />
+                                </StackPanel>
+                                <TextBlock Grid.Column="6" VerticalAlignment="Center" Text="停止热键" />
+                                <StackPanel Grid.Column="7" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBox x:Name="StopHotkeyTextBox"
+                                             Width="126"
+                                             Text="{Binding StopHotkey, UpdateSourceTrigger=PropertyChanged}" />
+                                    <Button Style="{StaticResource SmallButton}"
+                                            Content="采"
+                                            ToolTip="采集停止热键"
+                                            Click="CaptureStopHotkey_Click" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="8" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                    <Button Content="清空当前流程" Click="ClearCurrentFlow_Click" />
+                                    <Button Margin="8,0,0,0" Content="停止" Click="StopMacro_Click" />
+                                </StackPanel>
+                            </Grid>
+
+                            <UniformGrid Grid.Row="1" Columns="4" Rows="2">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Width="104" VerticalAlignment="Center" Text="普通键耗时" />
+                                    <TextBox Width="62" Text="{Binding SelectedFlow.KeyDelayMilliseconds}" />
+                                    <Button Style="{StaticResource SmallButton}" Content="-" Tag="KeyDelayMilliseconds,-10" Click="AdjustFlowDelay_Click" />
+                                    <Button Style="{StaticResource SmallButton}" Content="+" Tag="KeyDelayMilliseconds,10" Click="AdjustFlowDelay_Click" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Width="104" VerticalAlignment="Center" Text="技能键耗时" />
+                                    <TextBox Width="62" Text="{Binding SelectedFlow.SkillKeyDelayMilliseconds}" />
+                                    <Button Style="{StaticResource SmallButton}" Content="-" Tag="SkillKeyDelayMilliseconds,-10" Click="AdjustFlowDelay_Click" />
+                                    <Button Style="{StaticResource SmallButton}" Content="+" Tag="SkillKeyDelayMilliseconds,10" Click="AdjustFlowDelay_Click" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Width="104" VerticalAlignment="Center" Text="F2/F3耗时" />
+                                    <TextBox Width="62" Text="{Binding SelectedFlow.TeleportKeyDelayMilliseconds}" />
+                                    <Button Style="{StaticResource SmallButton}" Content="-" Tag="TeleportKeyDelayMilliseconds,-10" Click="AdjustFlowDelay_Click" />
+                                    <Button Style="{StaticResource SmallButton}" Content="+" Tag="TeleportKeyDelayMilliseconds,10" Click="AdjustFlowDelay_Click" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Width="104" VerticalAlignment="Center" Text="NPC点击耗时" />
+                                    <TextBox Width="62" Text="{Binding SelectedFlow.NpcClickDelayMilliseconds}" />
+                                    <Button Style="{StaticResource SmallButton}" Content="-" Tag="NpcClickDelayMilliseconds,-10" Click="AdjustFlowDelay_Click" />
+                                    <Button Style="{StaticResource SmallButton}" Content="+" Tag="NpcClickDelayMilliseconds,10" Click="AdjustFlowDelay_Click" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Width="104" VerticalAlignment="Center" Text="公屏耗时" />
+                                    <TextBox Width="62" Text="{Binding SelectedFlow.ChatDelayMilliseconds}" />
+                                    <Button Style="{StaticResource SmallButton}" Content="-" Tag="ChatDelayMilliseconds,-10" Click="AdjustFlowDelay_Click" />
+                                    <Button Style="{StaticResource SmallButton}" Content="+" Tag="ChatDelayMilliseconds,10" Click="AdjustFlowDelay_Click" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Width="104" VerticalAlignment="Center" Text="F1耗时" />
+                                    <TextBox Width="62" Text="{Binding SelectedFlow.HeroSelectDelayMilliseconds}" />
+                                    <Button Style="{StaticResource SmallButton}" Content="-" Tag="HeroSelectDelayMilliseconds,-10" Click="AdjustFlowDelay_Click" />
+                                    <Button Style="{StaticResource SmallButton}" Content="+" Tag="HeroSelectDelayMilliseconds,10" Click="AdjustFlowDelay_Click" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Width="104" VerticalAlignment="Center" Text="NPC移鼠耗时" />
+                                    <TextBox Width="62" Text="{Binding SelectedFlow.MouseMoveDelayMilliseconds}" />
+                                    <Button Style="{StaticResource SmallButton}" Content="-" Tag="MouseMoveDelayMilliseconds,-10" Click="AdjustFlowDelay_Click" />
+                                    <Button Style="{StaticResource SmallButton}" Content="+" Tag="MouseMoveDelayMilliseconds,10" Click="AdjustFlowDelay_Click" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Width="104" VerticalAlignment="Center" Text="技能移鼠耗时" />
+                                    <TextBox Width="62" Text="{Binding SelectedFlow.ReleaseMouseMoveDelayMilliseconds}" />
+                                    <Button Style="{StaticResource SmallButton}" Content="-" Tag="ReleaseMouseMoveDelayMilliseconds,-10" Click="AdjustFlowDelay_Click" />
+                                    <Button Style="{StaticResource SmallButton}" Content="+" Tag="ReleaseMouseMoveDelayMilliseconds,10" Click="AdjustFlowDelay_Click" />
+                                </StackPanel>
+                            </UniformGrid>
+
+                            <Grid Grid.Row="2" Width="1320">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="50" />
+                                    <ColumnDefinition Width="68" />
+                                    <ColumnDefinition Width="150" />
+                                    <ColumnDefinition Width="220" />
+                                    <ColumnDefinition Width="300" />
+                                    <ColumnDefinition Width="120" />
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="180" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Style="{StaticResource ColumnHeading}" Text="ID" />
+                                <TextBlock Grid.Column="1" Style="{StaticResource ColumnHeading}" Text="启用" />
+                                <TextBlock Grid.Column="2" Style="{StaticResource ColumnHeading}" Text="组前类型" />
+                                <TextBlock Grid.Column="3" Style="{StaticResource ColumnHeading}" Text="组前按键 / 公屏" />
+                                <TextBlock Grid.Column="4" Style="{StaticResource ColumnHeading}" Text="刷本选择" />
+                                <TextBlock Grid.Column="5" Style="{StaticResource ColumnHeading}" Text="动作占用" />
+                                <TextBlock Grid.Column="6" Style="{StaticResource ColumnHeading}" Text="组合时长" />
+                                <TextBlock Grid.Column="7" Style="{StaticResource ColumnHeading}" Text="等待 ms" />
+                            </Grid>
+                            <ItemsControl Grid.Row="3"
+                                          ItemTemplate="{StaticResource FlowGroupTemplate}"
+                                          ItemsSource="{Binding SelectedFlow.Groups}" />
+                        </Grid>
+                    </TabItem>
+
+                    <TabItem Header="NPC 与平台按键"
+                             AutomationProperties.AutomationId="NpcTab"
+                             Style="{StaticResource WorkTabItem}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="116" />
+                                <RowDefinition Height="1" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="70" />
+                                    <ColumnDefinition Width="270" />
+                                    <ColumnDefinition Width="52" />
+                                    <ColumnDefinition Width="96" />
+                                    <ColumnDefinition Width="52" />
+                                    <ColumnDefinition Width="96" />
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock VerticalAlignment="Center" Text="NPC" />
+                                 <ComboBox Grid.Column="1"
+                                           Width="250"
+                                           HorizontalAlignment="Left"
+                                           AutomationProperties.AutomationId="NpcSelector"
+                                           ItemsSource="{Binding Npcs}"
+                                          DisplayMemberPath="Name"
+                                          SelectedItem="{Binding SelectedNpc, Mode=TwoWay}" />
+                                <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="X" />
+                                 <TextBox Grid.Column="3"
+                                          Margin="0,39"
+                                          AutomationProperties.AutomationId="NpcTargetX"
+                                          Text="{Binding SelectedNpc.X, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Grid.Column="4" VerticalAlignment="Center" Text="Y" />
+                                 <TextBox Grid.Column="5"
+                                          Margin="0,39"
+                                          AutomationProperties.AutomationId="NpcTargetY"
+                                          Text="{Binding SelectedNpc.Y, UpdateSourceTrigger=PropertyChanged}" />
+                                <Button Grid.Column="6"
+                                        Width="112"
+                                        HorizontalAlignment="Left"
+                                        VerticalAlignment="Center"
+                                        Content="记录 NPC 点"
+                                        Click="CaptureNpcPoint_Click" />
+                                <StackPanel Grid.Column="7"
+                                            Orientation="Horizontal"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Center">
+                                    <CheckBox x:Name="SkipGameCheckCheckBox"
+                                              Margin="0,0,16,0"
+                                              AutomationProperties.AutomationId="SkipGameCheck"
+                                              Content="跳过窗口检测"
+                                              IsChecked="{Binding SkipGameCheck}" />
+                                    <Button Content="复制当前窗口" Click="CopyWindowInfo_Click" />
+                                    <Button Margin="8,0,0,0" Content="清空本区" Click="ClearNpcSettings_Click" />
+                                </StackPanel>
+                            </Grid>
+                            <Border Grid.Row="1" Background="{StaticResource LineBrush}" />
+                            <Grid Grid.Row="2" Margin="0,20,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="2*" />
+                                    <ColumnDefinition Width="32" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource SectionHeading}" Text="技能栏映射 4 x 3" />
+                                    <ItemsControl ItemsSource="{Binding SkillMappings}"
+                                                  ItemTemplate="{StaticResource KeyMapTemplate}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <UniformGrid Columns="4" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                    </ItemsControl>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Style="{StaticResource SectionHeading}" Text="装备栏映射" />
+                                    <ItemsControl ItemsSource="{Binding ItemMappings}"
+                                                  ItemTemplate="{StaticResource KeyMapTemplate}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <UniformGrid Columns="3" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Grid>
+                        </Grid>
+                    </TabItem>
+                </TabControl>
+
+                <Grid Grid.Row="3">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                     <TextBlock x:Name="MacroStateText"
+                                VerticalAlignment="Center"
+                                AutomationProperties.AutomationId="MacroState"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource AccentBrush}"
+                               Text="宏已启用" />
+                     <TextBlock x:Name="StatusText"
+                                Grid.Column="1"
+                                Margin="18,0"
+                                VerticalAlignment="Center"
+                                AutomationProperties.AutomationId="StatusText"
+                               TextTrimming="CharacterEllipsis"
+                               Text="正在启动..." />
+                    <TextBlock Grid.Column="2"
+                               VerticalAlignment="Center"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               Text="v0.1.0" />
+                </Grid>
+            </Grid>
+        </Viewbox>
+    </Grid>
+</Window>

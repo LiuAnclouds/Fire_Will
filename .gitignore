@@ -1,52 +1,23 @@
-# AutoHotkey / local runtime artifacts
-*.exe
-*.zip
-*.log
-*.bak
-*.tmp
-
-# Build and generated output
-dist/
-outputs/
-build/
-release/
 bin/
 obj/
 **/bin/
 **/obj/
-.tmp-restore-check/
-third_party/
-*.nupkg
-
-# Python cache from recognition tooling
-__pycache__/
-*.py[cod]
-
-# Editor/system files
-.vscode/
+.vs/
 .idea/
+TestResults/
+artifacts/
+publish/
+dist/
+release/
+*.user
+*.suo
+*.exe
+*.zip
+*.log
+*.pdb
+*.tmp
+*.bak
 Thumbs.db
 Desktop.ini
-
-# Keep original root video out of source; committed UI asset lives in ui/assets/
-/background.mp4
-
-# Electron
-electron/node_modules/
-electron/dist/
-!electron/backend/war3_macro_gui.exe
-electron/dist-admin/
-**/war3_session.ini
-
-# Local probe dumps and UI comparison captures
-/tools/
-/app/
-/native/
-/crop-*.png
-/current-ui*.png
-/v2-*.png
-/ui-transparent.png
-
-# Native probe captures are machine/session specific.
-native/probe/*.json
-
+war3_macro_gui.ini
+profiles/

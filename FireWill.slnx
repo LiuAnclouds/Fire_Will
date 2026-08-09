@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/FireWill.App/FireWill.App.csproj" />
+    <Project Path="src/FireWill.Core/FireWill.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/FireWill.App.Tests/FireWill.App.Tests.csproj" />
+    <Project Path="tests/FireWill.Tests/FireWill.Tests.csproj" />
+  </Folder>
+</Solution>

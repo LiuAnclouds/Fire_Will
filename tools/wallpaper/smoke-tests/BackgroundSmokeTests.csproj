@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\..\..\src\FireWill.App\Services\Background\*.cs"
+             Link="Background\%(Filename)%(Extension)" />
+    <EmbeddedResource Include="..\..\..\assets\backgrounds\susanoo-madara.mp4"
+                      LogicalName="FireWill.Assets.Backgrounds.susanoo-madara.mp4" />
+    <EmbeddedResource Include="..\..\..\assets\backgrounds\flowing-sasuke.mp4"
+                      LogicalName="FireWill.Assets.Backgrounds.flowing-sasuke.mp4" />
+  </ItemGroup>
+</Project>

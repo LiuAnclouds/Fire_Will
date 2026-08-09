@@ -1,0 +1,16 @@
+[
+  {
+    "id": "susanoo-madara",
+    "displayName": "须佐斑",
+    "fileName": "susanoo-madara.mp4",
+    "durationSeconds": 8.1,
+    "sha256": "d5cb7ad216cbb3cd0ad4aed1e3fbed82cf4c49716a16dca581ed3ba9a143f715"
+  },
+  {
+    "id": "flowing-sasuke",
+    "displayName": "流年佐助",
+    "fileName": "flowing-sasuke.mp4",
+    "durationSeconds": 15.0,
+    "sha256": "1fdee0e94998eb5442feb25b3e86901f9f1ca74fd9fce938f89af5dfde357ffe"
+  }
+]
