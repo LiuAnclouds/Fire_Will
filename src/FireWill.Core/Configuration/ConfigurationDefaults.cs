@@ -20,6 +20,20 @@ public static class ConfigurationDefaults
         AddFarm(configuration, "去尾兽处", "妙木山大蛤蟆", "去尾兽处");
         AddFarm(configuration, "尾兽处追捕逃忍", "尾兽处追捕逃忍NPC", "追捕");
 
+        foreach (var definition in ReleaseProfileCatalog.Definitions)
+        {
+            configuration.ReleaseProfiles.Add(
+                definition.Name,
+                new ReleaseProfileSettings
+                {
+                    Name = definition.Name,
+                    Kind = definition.Kind,
+                    KeyReference = definition.Kind == ReleaseProfileKind.Skill
+                        ? KeyMapReferences.Skill(definition.DefaultSlot)
+                        : KeyMapReferences.Item(definition.DefaultSlot),
+                });
+        }
+
         for (var flowSlot = 1; flowSlot <= LegacyCatalog.FlowCount; flowSlot++)
         {
             var flow = new FlowSettings

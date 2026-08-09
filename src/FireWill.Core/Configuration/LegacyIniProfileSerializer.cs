@@ -22,9 +22,13 @@ public static class LegacyIniProfileSerializer
         var configuration = ConfigurationDefaults.Create();
         LoadGeneral(document, configuration.General);
         LoadNpcs(document, configuration);
+        // Key mappings are loaded before release profiles so legacy physical-key
+        // values can be converted to stable slot references when possible.
+        LoadKeyMap(document, configuration.KeyMap);
+        LoadReleaseProfiles(document, configuration);
         LoadFarms(document, configuration);
         LoadFlows(document, configuration);
-        LoadKeyMap(document, configuration.KeyMap);
+        MigrateLegacyReleaseSelections(configuration);
         return configuration;
     }
 
@@ -70,6 +74,11 @@ public static class LegacyIniProfileSerializer
         foreach (var name in LegacyCatalog.FarmNames)
         {
             WriteFarm(document, configuration.Farms[name]);
+        }
+
+        foreach (var definition in ReleaseProfileCatalog.Definitions)
+        {
+            WriteReleaseProfile(document, configuration.ReleaseProfiles[definition.Name]);
         }
 
         foreach (var flow in configuration.Flows.OrderBy(flow => flow.Slot))
@@ -151,7 +160,8 @@ public static class LegacyIniProfileSerializer
             var legacySection = name == "家里挑战自我x10" ? "Farm.家里挑战自我x20" : section;
             var farm = configuration.Farms[name];
 
-            farm.ActionKey = LegacyNormalization.Key(GetWithLegacyFallback(document, section, legacySection, "actionKey", farm.ActionKey));
+            var rawActionKey = GetWithLegacyFallback(document, section, legacySection, "actionKey", farm.ActionKey);
+            farm.ActionKey = KeyMapReferences.Find(configuration.KeyMap, rawActionKey);
             farm.ReleaseType = LegacyNormalization.ReleaseType(GetWithLegacyFallback(document, section, legacySection, "releaseType", farm.ReleaseType));
             farm.ReleaseKey = LegacyNormalization.ReleaseKey(
                 farm.ReleaseType,
@@ -169,6 +179,21 @@ public static class LegacyIniProfileSerializer
                 ? ParseCaptureAspectRatio(
                     GetWithLegacyFallback(document, section, legacySection, "targetClientCaptureAspectRatio", string.Empty))
                 : null;
+        }
+    }
+
+    private static void LoadReleaseProfiles(IniDocument document, MacroConfiguration configuration)
+    {
+        foreach (var definition in ReleaseProfileCatalog.Definitions)
+        {
+            var profile = configuration.ReleaseProfiles[definition.Name];
+            var section = $"Release.{definition.Name}";
+            var rawReference = document.Get(section, "keyReference", profile.KeyReference);
+            profile.KeyReference = NormalizeReleaseReference(
+                rawReference,
+                definition.Kind,
+                configuration.KeyMap,
+                profile.KeyReference);
         }
     }
 
@@ -208,6 +233,16 @@ public static class LegacyIniProfileSerializer
                 group.PreType = document.Get(groupSection, "preType", group.PreType);
                 group.PreValue = LegacyNormalization.PreValue(group.PreType, document.Get(groupSection, "preValue", group.PreValue));
                 group.FarmName = LegacyNormalization.FarmName(document.Get(groupSection, "farm", group.FarmName));
+                if (document.TryGet(groupSection, "releaseProfile", out var releaseProfileName))
+                {
+                    group.ReleaseProfileName = ReleaseProfileCatalog.NormalizeName(releaseProfileName);
+                    group.ReleaseSelectionIsExplicit = true;
+                }
+                else
+                {
+                    group.ReleaseProfileName = LegacyValues.None;
+                    group.ReleaseSelectionIsExplicit = false;
+                }
                 if (group.FarmName == LegacyValues.None)
                 {
                     var migratedFarm = FindFarmNameForNpcAction(
@@ -228,6 +263,131 @@ public static class LegacyIniProfileSerializer
             }
         }
     }
+
+    private static void MigrateLegacyReleaseSelections(MacroConfiguration configuration)
+    {
+        var claimedProfiles = new Dictionary<string, string>(StringComparer.Ordinal);
+        var migratedReferences = new Dictionary<string, ReleaseProfileSettings>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var explicitGroup in configuration.Flows
+                     .SelectMany(flow => flow.Groups)
+                     .Where(group => group.ReleaseSelectionIsExplicit))
+        {
+            var name = ReleaseProfileCatalog.NormalizeName(explicitGroup.ReleaseProfileName);
+            if (name == LegacyValues.None ||
+                !configuration.ReleaseProfiles.TryGetValue(name, out var profile))
+            {
+                continue;
+            }
+
+            claimedProfiles[profile.Name] = profile.KeyReference;
+            var reference = KeyMapReferences.Canonicalize(profile.KeyReference);
+            if (reference.Length > 0)
+            {
+                migratedReferences[MigrationReferenceKey(profile.Kind, reference)] = profile;
+            }
+        }
+
+        foreach (var flow in configuration.Flows)
+        {
+            foreach (var group in flow.Groups)
+            {
+                if (group.ReleaseSelectionIsExplicit)
+                {
+                    continue;
+                }
+
+                if (group.FarmName == LegacyValues.None ||
+                    !configuration.Farms.TryGetValue(group.FarmName, out var farm))
+                {
+                    group.ReleaseProfileName = LegacyValues.None;
+                    group.ReleaseSelectionIsExplicit = true;
+                    continue;
+                }
+
+                var reference = LegacyReleaseReference(farm, configuration.KeyMap);
+                if (reference.Length == 0)
+                {
+                    // A loaded profile is always explicit in the current format.
+                    // This prevents stale legacy release fields from being run
+                    // after the user has moved to the task/release split.
+                    group.ReleaseProfileName = LegacyValues.None;
+                    group.ReleaseSelectionIsExplicit = true;
+                    continue;
+                }
+
+                var expectedKind = LegacyReleaseKind(farm);
+                var migrationKey = MigrationReferenceKey(expectedKind, reference);
+                migratedReferences.TryGetValue(migrationKey, out var profile);
+                profile ??= configuration.ReleaseProfiles.Values.FirstOrDefault(item =>
+                    item.Kind == expectedKind &&
+                    string.Equals(item.KeyReference, reference, StringComparison.OrdinalIgnoreCase) &&
+                    (!claimedProfiles.TryGetValue(item.Name, out var claimedReference) ||
+                     string.Equals(claimedReference, reference, StringComparison.OrdinalIgnoreCase)));
+                profile ??= FindLegacyMigrationProfile(
+                    configuration,
+                    expectedKind,
+                    reference,
+                    claimedProfiles);
+                if (profile is not null)
+                {
+                    profile.KeyReference = reference;
+                    claimedProfiles[profile.Name] = reference;
+                    migratedReferences[migrationKey] = profile;
+                    group.ReleaseProfileName = profile.Name;
+                    group.ReleaseSelectionIsExplicit = true;
+                }
+                else
+                {
+                    group.ReleaseProfileName = LegacyValues.None;
+                    group.ReleaseSelectionIsExplicit = true;
+                }
+            }
+        }
+    }
+
+    private static ReleaseProfileSettings? FindLegacyMigrationProfile(
+        MacroConfiguration configuration,
+        ReleaseProfileKind expectedKind,
+        string reference,
+        IReadOnlyDictionary<string, string> claimedProfiles)
+    {
+        if (expectedKind == ReleaseProfileKind.Skill &&
+            KeyMapReferences.TryGetDirect(reference, out var directKey))
+        {
+            var semanticName = directKey.ToUpperInvariant() switch
+            {
+                "Q" => "Q技能",
+                "W" => "W技能",
+                "E" => "E技能",
+                "R" => "R技能",
+                "D" => "D技能",
+                "F" => "F技能",
+                "B" => "B技能",
+                _ => string.Empty,
+            };
+            if (semanticName.Length > 0 && !claimedProfiles.ContainsKey(semanticName))
+            {
+                return configuration.ReleaseProfiles[semanticName];
+            }
+        }
+
+        return ReleaseProfileCatalog.Definitions
+            .Where(definition => definition.Kind == expectedKind)
+            .Select(definition => configuration.ReleaseProfiles[definition.Name])
+            .FirstOrDefault(profile => !claimedProfiles.ContainsKey(profile.Name));
+    }
+
+    private static ReleaseProfileKind LegacyReleaseKind(FarmSettings farm)
+    {
+        var releaseType = LegacyNormalization.ReleaseType(farm.ReleaseType);
+        return releaseType is LegacyValues.ItemKeyRelease or LegacyValues.ItemSlotRelease
+            ? ReleaseProfileKind.Item
+            : ReleaseProfileKind.Skill;
+    }
+
+    private static string MigrationReferenceKey(ReleaseProfileKind kind, string reference) =>
+        $"{kind}:{reference}";
 
     private static void LoadKeyMap(IniDocument document, KeyMapSettings keyMap)
     {
@@ -307,6 +467,16 @@ public static class LegacyIniProfileSerializer
             farm.TargetClientYRatio);
     }
 
+    private static void WriteReleaseProfile(IniDocument document, ReleaseProfileSettings profile)
+    {
+        var section = $"Release.{profile.Name}";
+        document.Set(section, "kind", profile.Kind == ReleaseProfileKind.Skill ? "skill" : "item");
+        document.Set(
+            section,
+            "keyReference",
+            NormalizeReleaseReference(profile.KeyReference, profile.Kind, null, string.Empty));
+    }
+
     private static void WriteFlow(IniDocument document, FlowSettings flow)
     {
         var section = $"Flow.{flow.Slot}";
@@ -329,6 +499,10 @@ public static class LegacyIniProfileSerializer
             document.Set(groupSection, "preType", group.PreType);
             document.Set(groupSection, "preValue", LegacyNormalization.PreValue(group.PreType, group.PreValue));
             document.Set(groupSection, "farm", LegacyNormalization.FarmName(group.FarmName));
+            document.Set(
+                groupSection,
+                "releaseProfile",
+                ReleaseProfileCatalog.NormalizeName(group.ReleaseProfileName));
             if (group.WaitMs is not null)
             {
                 document.Set(groupSection, "wait", Format(Math.Clamp(group.WaitMs.Value, 0, 30_000)));
@@ -395,6 +569,76 @@ public static class LegacyIniProfileSerializer
 
         return configuration.Farms.Values.FirstOrDefault(
             farm => farm.NpcName == npcName && farm.NpcAction == action)?.Name ?? string.Empty;
+    }
+
+    private static string NormalizeReleaseReference(
+        string? value,
+        ReleaseProfileKind expectedKind,
+        KeyMapSettings? keyMap,
+        string fallback)
+    {
+        var canonical = KeyMapReferences.Canonicalize(value);
+        if (KeyMapReferences.TryParse(canonical, out var parsedKind, out var slot))
+        {
+            var expectedReferenceKind = expectedKind == ReleaseProfileKind.Skill
+                ? KeyMapReferenceKind.Skill
+                : KeyMapReferenceKind.Item;
+            var maximum = expectedKind == ReleaseProfileKind.Skill
+                ? LegacyCatalog.SkillSlotCount
+                : LegacyCatalog.ItemSlotCount;
+            return parsedKind == expectedReferenceKind && slot <= maximum
+                ? canonical
+                : fallback;
+        }
+
+        if (!KeyMapReferences.TryGetDirect(canonical, out var directKey))
+        {
+            return fallback;
+        }
+
+        if (keyMap is not null)
+        {
+            var preferredKind = expectedKind == ReleaseProfileKind.Skill
+                ? KeyMapReferenceKind.Skill
+                : KeyMapReferenceKind.Item;
+            var mappedReference = KeyMapReferences.Find(keyMap, directKey, preferredKind);
+            if (KeyMapReferences.TryParse(mappedReference, out parsedKind, out slot))
+            {
+                return mappedReference;
+            }
+        }
+
+        return KeyMapReferences.Direct(directKey);
+    }
+
+    private static string LegacyReleaseReference(FarmSettings farm, KeyMapSettings keyMap)
+    {
+        var releaseType = LegacyNormalization.ReleaseType(farm.ReleaseType);
+        if (releaseType == LegacyValues.SkillSlotRelease)
+        {
+            var slot = LegacyNormalization.ToInt(farm.ReleaseKey);
+            return slot is >= 1 and <= LegacyCatalog.SkillSlotCount
+                ? KeyMapReferences.Skill(slot)
+                : string.Empty;
+        }
+
+        if (releaseType == LegacyValues.ItemSlotRelease)
+        {
+            var slot = LegacyNormalization.ToInt(farm.ReleaseKey);
+            return slot is >= 1 and <= LegacyCatalog.ItemSlotCount
+                ? KeyMapReferences.Item(slot)
+                : string.Empty;
+        }
+
+        if (releaseType is LegacyValues.SkillKeyRelease or LegacyValues.ItemKeyRelease)
+        {
+            var preferredKind = releaseType == LegacyValues.SkillKeyRelease
+                ? KeyMapReferenceKind.Skill
+                : KeyMapReferenceKind.Item;
+            return KeyMapReferences.Find(keyMap, farm.ReleaseKey, preferredKind);
+        }
+
+        return string.Empty;
     }
 
     private static int? ToNullableInt(string? value, int? fallback)
@@ -519,6 +763,20 @@ public static class LegacyIniProfileSerializer
             if (!configuration.Farms.ContainsKey(name))
             {
                 throw new InvalidOperationException($"Missing legacy farm: {name}");
+            }
+        }
+
+        if (configuration.ReleaseProfiles.Count != ReleaseProfileCatalog.Definitions.Count)
+        {
+            throw new InvalidOperationException("Profiles require 7 skill and 2 item release definitions.");
+        }
+
+        foreach (var definition in ReleaseProfileCatalog.Definitions)
+        {
+            if (!configuration.ReleaseProfiles.TryGetValue(definition.Name, out var profile) ||
+                profile.Kind != definition.Kind)
+            {
+                throw new InvalidOperationException($"Missing release profile: {definition.Name}");
             }
         }
     }

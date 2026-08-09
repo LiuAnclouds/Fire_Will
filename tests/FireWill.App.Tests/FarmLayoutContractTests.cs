@@ -1,43 +1,52 @@
 using System.Xml.Linq;
+using FireWill.App.ViewModels;
+using FireWill.Core.Configuration;
 
 namespace FireWill.App.Tests;
 
 public sealed class FarmLayoutContractTests
 {
     [Fact]
-    public void FarmEditor_IsSplitIntoTaskStartAndSkillReleaseColumns()
+    public void FarmState_ExposesSevenTasksAndNineTypedReleaseProfiles()
+    {
+        var state = new MainWindowState(ConfigurationDefaults.Create());
+
+        Assert.Equal(7, state.Farms.Count);
+        Assert.Equal(
+            ["Q技能", "W技能", "E技能", "R技能", "D技能", "F技能", "B技能"],
+            state.SkillReleaseProfiles.Select(profile => profile.Name));
+        Assert.Equal(["装备1", "装备2"], state.ItemReleaseProfiles.Select(profile => profile.Name));
+        Assert.All(state.SkillReleaseProfiles, profile => Assert.Equal(13, profile.KeyOptions.Count));
+        Assert.All(state.ItemReleaseProfiles, profile => Assert.Equal(7, profile.KeyOptions.Count));
+        Assert.Equal(
+            ["无", "Q技能", "W技能", "E技能", "R技能", "D技能", "F技能", "B技能", "装备1", "装备2"],
+            state.ReleaseProfileOptions);
+    }
+
+    [Fact]
+    public void FarmEditor_UsesIndependentTaskAndNineReleaseSections()
     {
         var document = XDocument.Load(FindRepositoryFile("src", "FireWill.App", "MainWindow.xaml"));
         var presentation = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml/presentation");
-        var xaml = XNamespace.Get("http://schemas.microsoft.com/winfx/2006/xaml");
 
-        var template = document
-            .Descendants(presentation + "DataTemplate")
-            .Single(element => element.Attributes().Any(
-                attribute => attribute.Name.LocalName == "Key" && attribute.Value == "FarmRowTemplate"));
-        var row = Assert.Single(template.Elements(presentation + "Grid"));
-        var rowColumns = Assert.IsType<XElement>(row.Element(presentation + "Grid.ColumnDefinitions"))
-            .Elements(presentation + "ColumnDefinition")
-            .ToArray();
-        Assert.Equal(["644", "32", "644"], rowColumns.Select(column => column.Attribute("Width")?.Value));
+        var taskTemplate = FindTemplate(document, presentation, "FarmTaskRowTemplate");
+        var taskCombo = Assert.Single(taskTemplate.Descendants(presentation + "ComboBox"));
+        Assert.True(HasBinding(taskCombo, "ActionReference"));
+        Assert.Equal("DisplayName", taskCombo.Attribute("DisplayMemberPath")?.Value);
+        Assert.Equal("Reference", taskCombo.Attribute("SelectedValuePath")?.Value);
 
-        var taskFields = row
-            .Descendants(presentation + "Grid")
-            .Single(element => (string?)element.Attribute(xaml + "Name") == "TaskStartFields");
-        var skillFields = row
-            .Descendants(presentation + "Grid")
-            .Single(element => (string?)element.Attribute(xaml + "Name") == "SkillReleaseFields");
-        Assert.Null(taskFields.Attribute("Grid.Column"));
-        Assert.Equal("2", skillFields.Attribute("Grid.Column")?.Value);
+        var releaseTemplate = FindTemplate(document, presentation, "ReleaseProfileRowTemplate");
+        var releaseCombo = Assert.Single(releaseTemplate.Descendants(presentation + "ComboBox"));
+        Assert.True(HasBinding(releaseCombo, "KeyReference"));
+        Assert.Equal("DisplayName", releaseCombo.Attribute("DisplayMemberPath")?.Value);
+        Assert.Equal("Reference", releaseCombo.Attribute("SelectedValuePath")?.Value);
 
-        Assert.Contains(taskFields.Descendants(), element => HasBinding(element, "Name"));
-        Assert.Contains(taskFields.Descendants(), element => HasBinding(element, "NpcAction"));
-        Assert.Contains(taskFields.Descendants(), element => HasBinding(element, "ActionKey"));
-        Assert.Contains(skillFields.Descendants(), element => HasBinding(element, "ReleaseType"));
-        Assert.Contains(skillFields.Descendants(), element => HasBinding(element, "ReleaseKey"));
-        Assert.Contains(
-            skillFields.Descendants(presentation + "Button"),
-            element => (string?)element.Attribute("Content") == "记录技能点");
+        var skillRows = document.Descendants(presentation + "ItemsControl")
+            .Single(element => (string?)element.Attribute("ItemsSource") == "{Binding SkillReleaseProfiles}");
+        var itemRows = document.Descendants(presentation + "ItemsControl")
+            .Single(element => (string?)element.Attribute("ItemsSource") == "{Binding ItemReleaseProfiles}");
+        Assert.Equal("{StaticResource ReleaseProfileRowTemplate}", skillRows.Attribute("ItemTemplate")?.Value);
+        Assert.Equal("{StaticResource ReleaseProfileRowTemplate}", itemRows.Attribute("ItemTemplate")?.Value);
 
         var headings = document
             .Descendants(presentation + "TextBlock")
@@ -46,13 +55,45 @@ public sealed class FarmLayoutContractTests
             .ToArray();
         Assert.Contains("任务启动", headings);
         Assert.Contains("技能释放", headings);
-        Assert.DoesNotContain(headings, value => value!.Contains("鼠标点", StringComparison.Ordinal));
+        Assert.Contains("刷本任务", headings);
+        Assert.Contains("组合名称", headings);
+        Assert.Contains("映射按键", headings);
+        Assert.DoesNotContain(headings, value => value!.Contains("槽位", StringComparison.Ordinal));
+        Assert.DoesNotContain(headings, value => value!.Contains("释放方式", StringComparison.Ordinal));
+        Assert.DoesNotContain(headings, value => value!.Contains("按键类型", StringComparison.Ordinal));
+        Assert.DoesNotContain(headings, value => value!.Contains("技能点", StringComparison.Ordinal));
+        Assert.DoesNotContain(document.Descendants(presentation + "Button"), element =>
+            (string?)element.Attribute("Content") == "记录技能点");
+        Assert.DoesNotContain(document.ToString(), "FarmCaptureTarget", StringComparison.Ordinal);
+        Assert.DoesNotContain(document.ToString(), "F5", StringComparison.Ordinal);
+
+        var flowTemplate = FindTemplate(document, presentation, "FlowGroupTemplate");
+        var flowCombos = flowTemplate.Descendants(presentation + "ComboBox").ToArray();
+        Assert.Contains(flowCombos, combo => HasBinding(combo, "FarmName"));
+        Assert.Contains(flowCombos, combo => HasBinding(combo, "ReleaseProfileName"));
+
+        var state = new MainWindowState(ConfigurationDefaults.Create());
+        Assert.Equal(19, state.Farms[0].ActionKeyOptions.Count);
+        var group = state.Flows[0].Groups[0];
+        group.FarmName = state.FarmOptions[1];
+        group.ReleaseProfileName = "Q技能";
+        Assert.Equal(state.FarmOptions[1], group.FarmName);
+        Assert.Equal("Q技能", group.ReleaseProfileName);
+        group.FarmName = LegacyValues.None;
+        Assert.Equal("Q技能", group.ReleaseProfileName);
+        group.ReleaseProfileName = LegacyValues.None;
+        Assert.Equal(LegacyValues.None, group.ReleaseProfileName);
     }
 
+    private static XElement FindTemplate(XDocument document, XNamespace presentation, string key) =>
+        document.Descendants(presentation + "DataTemplate")
+            .Single(element => element.Attributes().Any(
+                attribute => attribute.Name.LocalName == "Key" && attribute.Value == key));
+
     private static bool HasBinding(XElement element, string propertyName) =>
-        element.Attributes().Any(
-            attribute => attribute.Name.LocalName is "Text" or "SelectedItem" &&
-                         attribute.Value.StartsWith("{Binding " + propertyName, StringComparison.Ordinal));
+        element.Attributes().Any(attribute =>
+            attribute.Name.LocalName is ("Text" or "SelectedItem" or "SelectedValue") &&
+            attribute.Value.StartsWith("{Binding " + propertyName, StringComparison.Ordinal));
 
     private static string FindRepositoryFile(params string[] path)
     {

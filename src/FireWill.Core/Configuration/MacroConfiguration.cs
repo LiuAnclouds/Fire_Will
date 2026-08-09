@@ -39,6 +39,57 @@ public static class LegacyCatalog
     ]);
 }
 
+public enum ReleaseProfileKind
+{
+    Skill,
+    Item,
+}
+
+public sealed record ReleaseProfileDefinition(
+    string Name,
+    ReleaseProfileKind Kind,
+    int DefaultSlot);
+
+public static class ReleaseProfileCatalog
+{
+    public static IReadOnlyList<ReleaseProfileDefinition> Definitions { get; } = Array.AsReadOnly(
+        new ReleaseProfileDefinition[]
+        {
+        new("Q技能", ReleaseProfileKind.Skill, 1),
+        new("W技能", ReleaseProfileKind.Skill, 2),
+        new("E技能", ReleaseProfileKind.Skill, 3),
+        new("R技能", ReleaseProfileKind.Skill, 4),
+        new("D技能", ReleaseProfileKind.Skill, 5),
+        new("F技能", ReleaseProfileKind.Skill, 6),
+        new("B技能", ReleaseProfileKind.Skill, 7),
+        new("装备1", ReleaseProfileKind.Item, 1),
+        new("装备2", ReleaseProfileKind.Item, 2),
+        });
+
+    public static IReadOnlyList<string> Names { get; } = Array.AsReadOnly(
+        Definitions.Select(definition => definition.Name).ToArray());
+
+    public static IReadOnlyList<string> SkillNames { get; } = Array.AsReadOnly(
+        Definitions
+            .Where(definition => definition.Kind == ReleaseProfileKind.Skill)
+            .Select(definition => definition.Name)
+            .ToArray());
+
+    public static IReadOnlyList<string> ItemNames { get; } = Array.AsReadOnly(
+        Definitions
+            .Where(definition => definition.Kind == ReleaseProfileKind.Item)
+            .Select(definition => definition.Name)
+            .ToArray());
+
+    public static string NormalizeName(string? value)
+    {
+        var normalized = value?.Trim() ?? string.Empty;
+        return Names.Contains(normalized, StringComparer.Ordinal)
+            ? normalized
+            : LegacyValues.None;
+    }
+}
+
 public sealed class MacroConfiguration
 {
     public GeneralSettings General { get; } = new();
@@ -46,6 +97,8 @@ public sealed class MacroConfiguration
     public Dictionary<string, NpcSettings> Npcs { get; } = new(StringComparer.Ordinal);
 
     public Dictionary<string, FarmSettings> Farms { get; } = new(StringComparer.Ordinal);
+
+    public Dictionary<string, ReleaseProfileSettings> ReleaseProfiles { get; } = new(StringComparer.Ordinal);
 
     public List<FlowSettings> Flows { get; } = [];
 
@@ -118,6 +171,7 @@ public sealed class FarmSettings
 
     public string ActionKey { get; set; } = string.Empty;
 
+    // Kept only to load profiles written before task and release selection were separated.
     public string ReleaseType { get; set; } = LegacyValues.None;
 
     public string ReleaseKey { get; set; } = string.Empty;
@@ -131,6 +185,15 @@ public sealed class FarmSettings
     public double? TargetClientYRatio { get; set; }
 
     public double? TargetClientCaptureAspectRatio { get; set; }
+}
+
+public sealed class ReleaseProfileSettings
+{
+    public required string Name { get; init; }
+
+    public required ReleaseProfileKind Kind { get; init; }
+
+    public string KeyReference { get; set; } = string.Empty;
 }
 
 public sealed class FlowSettings
@@ -173,6 +236,12 @@ public sealed class FlowGroupSettings
     public string PreValue { get; set; } = string.Empty;
 
     public string FarmName { get; set; } = LegacyValues.None;
+
+    public string ReleaseProfileName { get; set; } = LegacyValues.None;
+
+    // Distinguishes a new explicit "无" choice from an old group that has no
+    // releaseProfile field and still needs legacy Farm release fallback.
+    public bool ReleaseSelectionIsExplicit { get; set; }
 
     // Null preserves old profiles where duration represented the whole group budget.
     public int? WaitMs { get; set; }

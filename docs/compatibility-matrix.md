@@ -9,16 +9,17 @@
 
 The complete GUI script is the product behavior oracle. The smaller NPC script remains a historical template only.
 
-## Required behavior
+## Current release behavior
 
-- Five fixed NPC definitions and seven fixed farm actions.
+- Five fixed NPC definitions and seven fixed farm tasks.
 - Eight configurable flows with eight ordered groups per flow.
-- Twelve skill slots and six item slots.
+- Twelve skill slots and six item slots for platform mappings.
+- Seven named skill release profiles (`Q技能`, `W技能`, `E技能`, `R技能`, `D技能`, `F技能`, `B技能`) and two named item profiles (`装备1`, `装备2`).
+- Task startup and release selection are independent in every flow group; either side can be left at `无`.
 - Per-flow key, skill, hero-select, NPC-click, chat, teleport, NPC-mouse, and release-mouse delays.
 - Group pre-actions: none, key, or public chat.
-- Release modes: none, skill key, item key, skill slot, or item slot.
-- Screen-coordinate NPC and release targeting.
-- F5 captures the selected farm target; F6 captures the selected NPC. Up/Down cycle the two selections, leaving F7/F8 available for user bindings.
+- NPC screen-coordinate capture only; F6 records the selected NPC and Down cycles NPCs.
+- Legacy release fields are read for one-time migration into named profiles and are not exposed by the current UI.
 - Configurable stop hotkey; one tap stops and pauses, two taps within 350 ms resume.
 - Game-window gating, manual binding, clipboard window diagnostics, and skip-window-check mode.
 - UTF-8 INI and hero profile import/export without changing the legacy source files.

@@ -1,5 +1,6 @@
 using System.Reflection;
 using FireWill.App.Services.Input;
+using FireWill.App.ViewModels;
 
 namespace FireWill.App.Tests;
 
@@ -67,34 +68,46 @@ public sealed class HotkeyGestureTests
         var reserved = values.Select(HotkeyGesture.Parse).ToHashSet();
 
         Assert.Contains(HotkeyGesture.Parse("Esc"), reserved);
-        Assert.Contains(HotkeyGesture.Parse("F5"), reserved);
+        Assert.DoesNotContain(HotkeyGesture.Parse("F5"), reserved);
         Assert.Contains(HotkeyGesture.Parse("F6"), reserved);
-        Assert.Contains(HotkeyGesture.Parse("Up"), reserved);
         Assert.Contains(HotkeyGesture.Parse("Down"), reserved);
         Assert.DoesNotContain(HotkeyGesture.Parse("F7"), reserved);
         Assert.DoesNotContain(HotkeyGesture.Parse("F8"), reserved);
     }
 
     [Fact]
-    public void CoordinateCaptureHotkeyConstants_MapSkillToF5AndNpcToF6()
+    public void CoordinateCaptureHotkeyConstants_KeepOnlyNpcCapture()
     {
-        var skillField = typeof(MainWindow).GetField(
-            "SkillPointCaptureHotkey",
-            BindingFlags.NonPublic | BindingFlags.Static);
         var npcField = typeof(MainWindow).GetField(
             "NpcPointCaptureHotkey",
-            BindingFlags.NonPublic | BindingFlags.Static);
-        var skillSelectionField = typeof(MainWindow).GetField(
-            "SkillPointSelectionHotkey",
             BindingFlags.NonPublic | BindingFlags.Static);
         var npcSelectionField = typeof(MainWindow).GetField(
             "NpcPointSelectionHotkey",
             BindingFlags.NonPublic | BindingFlags.Static);
 
-        Assert.Equal("F5", skillField?.GetRawConstantValue());
         Assert.Equal("F6", npcField?.GetRawConstantValue());
-        Assert.Equal("Up", skillSelectionField?.GetRawConstantValue());
         Assert.Equal("Down", npcSelectionField?.GetRawConstantValue());
+        Assert.Null(typeof(MainWindow).GetField(
+            "SkillPointCaptureHotkey",
+            BindingFlags.NonPublic | BindingFlags.Static));
+    }
+
+    [Theory]
+    [InlineData(ConfigurationChangeSource.General, true)]
+    [InlineData(ConfigurationChangeSource.Flow, true)]
+    [InlineData(ConfigurationChangeSource.FlowGroup, false)]
+    [InlineData(ConfigurationChangeSource.Farm, false)]
+    [InlineData(ConfigurationChangeSource.ReleaseProfile, false)]
+    public void ConfigurationChangeSource_RefreshesHotkeysOnlyForRegistrationInputs(
+        ConfigurationChangeSource source,
+        bool expected)
+    {
+        var method = typeof(MainWindow).GetMethod(
+            "RequiresHotkeyRefresh",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(method);
+        Assert.Equal(expected, method!.Invoke(null, [source]));
     }
 
     [Fact]

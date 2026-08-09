@@ -94,6 +94,24 @@ public sealed class FlowAdaptiveCoordinatePreflightTests
     }
 
     [Fact]
+    public void FindMissing_ExplicitNoneIgnoresLegacyFarmTarget()
+    {
+        var configuration = CreateConfiguredFlow();
+        var flow = configuration.GetFlow(1);
+        var group = flow.Groups[0];
+        group.ReleaseProfileName = LegacyValues.None;
+        group.ReleaseSelectionIsExplicit = true;
+
+        var issues = FlowAdaptiveCoordinatePreflight.FindMissing(configuration, 1);
+
+        Assert.Equal(
+            [new AdaptiveCoordinateIssue(
+                AdaptiveCoordinatePointKind.Npc,
+                "家里挑战自我NPC")],
+            issues);
+    }
+
+    [Fact]
     public void FindMissing_IgnoresDisabledFlowAndGroups()
     {
         var configuration = CreateConfiguredFlow();

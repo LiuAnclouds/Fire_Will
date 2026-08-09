@@ -15,11 +15,29 @@ public enum ConfigurationChangeSource
     FlowGroup,
     SkillMapping,
     ItemMapping,
+    ReleaseProfile,
 }
 
 public sealed class ConfigurationChangedEventArgs(ConfigurationChangeSource source) : EventArgs
 {
     public ConfigurationChangeSource Source { get; } = source;
+}
+
+public sealed record MappedKeyOption(string DisplayName, string Reference)
+{
+    public static IReadOnlyList<MappedKeyOption> CreateAll() =>
+    [
+        new(LegacyValues.None, string.Empty),
+        .. KeyMapReferences.All().Select(reference =>
+            new MappedKeyOption(KeyMapReferences.DisplayName(reference), reference)),
+    ];
+
+    public static IReadOnlyList<MappedKeyOption> CreateFor(KeyMapReferenceKind kind) =>
+    [
+        new(LegacyValues.None, string.Empty),
+        .. KeyMapReferences.All(kind).Select(reference =>
+            new MappedKeyOption(KeyMapReferences.DisplayName(reference), reference)),
+    ];
 }
 
 public sealed class MainWindowState : BindableObject
@@ -31,35 +49,46 @@ public sealed class MainWindowState : BindableObject
     public MainWindowState(MacroConfiguration configuration)
     {
         Configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
-        ReleaseTypeOptions =
-        [
-            LegacyValues.None,
-            LegacyValues.SkillKeyRelease,
-            LegacyValues.ItemKeyRelease,
-            LegacyValues.SkillSlotRelease,
-            LegacyValues.ItemSlotRelease,
-        ];
+        MappedKeyOptions = MappedKeyOption.CreateAll();
+        SkillKeyOptions = MappedKeyOption.CreateFor(KeyMapReferenceKind.Skill);
+        ItemKeyOptions = MappedKeyOption.CreateFor(KeyMapReferenceKind.Item);
         PreTypeOptions = [LegacyValues.None, LegacyValues.KeyPreCommand, LegacyValues.ChatPreCommand];
         FarmOptions = [LegacyValues.None, .. LegacyCatalog.FarmNames];
+        ReleaseProfileOptions = [LegacyValues.None, .. ReleaseProfileCatalog.Names];
 
         Farms = new ObservableCollection<FarmRowViewModel>(
-            LegacyCatalog.FarmNames.Select(name => new FarmRowViewModel(configuration.Farms[name])));
+            LegacyCatalog.FarmNames.Select(name => new FarmRowViewModel(
+                configuration.Farms[name],
+                MappedKeyOptions)));
+        ReleaseProfiles = new ObservableCollection<ReleaseProfileRowViewModel>(
+            ReleaseProfileCatalog.Definitions.Select(definition =>
+                new ReleaseProfileRowViewModel(
+                    configuration.ReleaseProfiles[definition.Name],
+                    definition.Kind == ReleaseProfileKind.Skill ? SkillKeyOptions : ItemKeyOptions)));
+        SkillReleaseProfiles = new ObservableCollection<ReleaseProfileRowViewModel>(
+            ReleaseProfiles.Where(profile => profile.Kind == ReleaseProfileKind.Skill));
+        ItemReleaseProfiles = new ObservableCollection<ReleaseProfileRowViewModel>(
+            ReleaseProfiles.Where(profile => profile.Kind == ReleaseProfileKind.Item));
         Npcs = new ObservableCollection<NpcRowViewModel>(
             LegacyCatalog.NpcNames.Select(name => new NpcRowViewModel(configuration.Npcs[name])));
         Flows = new ObservableCollection<FlowRowViewModel>(
             configuration.Flows
                 .OrderBy(flow => flow.Slot)
-                .Select(flow => new FlowRowViewModel(configuration, flow, _compiler)));
+                .Select(flow => new FlowRowViewModel(
+                    configuration,
+                    flow,
+                    _compiler,
+                    ReleaseProfileOptions)));
         SkillMappings = new ObservableCollection<KeyMappingRowViewModel>(
             Enumerable.Range(1, LegacyCatalog.SkillSlotCount)
                 .Select(index => new KeyMappingRowViewModel(
-                    $"技能 {index}",
+                    $"技能按键{index}",
                     () => configuration.KeyMap.Skills[index - 1],
                     value => configuration.KeyMap.Skills[index - 1] = LegacyNormalization.Key(value))));
         ItemMappings = new ObservableCollection<KeyMappingRowViewModel>(
             Enumerable.Range(1, LegacyCatalog.ItemSlotCount)
                 .Select(index => new KeyMappingRowViewModel(
-                    $"装备 {index}",
+                    $"装备按键{index}",
                     () => configuration.KeyMap.Items[index - 1],
                     value => configuration.KeyMap.Items[index - 1] = LegacyNormalization.Key(value))));
         SkillMappingsForDisplay =
@@ -79,6 +108,12 @@ public sealed class MainWindowState : BindableObject
         {
             npc.ValueChanged += RefreshDurations;
             npc.ValueChanged += () => RaiseConfigurationChanged(ConfigurationChangeSource.Npc);
+        }
+
+        foreach (var profile in ReleaseProfiles)
+        {
+            profile.ValueChanged += RefreshDurations;
+            profile.ValueChanged += () => RaiseConfigurationChanged(ConfigurationChangeSource.ReleaseProfile);
         }
 
         foreach (var mapping in SkillMappings)
@@ -108,6 +143,12 @@ public sealed class MainWindowState : BindableObject
 
     public ObservableCollection<FarmRowViewModel> Farms { get; }
 
+    public ObservableCollection<ReleaseProfileRowViewModel> ReleaseProfiles { get; }
+
+    public ObservableCollection<ReleaseProfileRowViewModel> SkillReleaseProfiles { get; }
+
+    public ObservableCollection<ReleaseProfileRowViewModel> ItemReleaseProfiles { get; }
+
     public ObservableCollection<FlowRowViewModel> Flows { get; }
 
     public ObservableCollection<NpcRowViewModel> Npcs { get; }
@@ -118,11 +159,17 @@ public sealed class MainWindowState : BindableObject
 
     public ObservableCollection<KeyMappingRowViewModel> ItemMappings { get; }
 
-    public IReadOnlyList<string> ReleaseTypeOptions { get; }
+    public IReadOnlyList<MappedKeyOption> MappedKeyOptions { get; }
+
+    public IReadOnlyList<MappedKeyOption> SkillKeyOptions { get; }
+
+    public IReadOnlyList<MappedKeyOption> ItemKeyOptions { get; }
 
     public IReadOnlyList<string> PreTypeOptions { get; }
 
     public IReadOnlyList<string> FarmOptions { get; }
+
+    public IReadOnlyList<string> ReleaseProfileOptions { get; }
 
     public event EventHandler<ConfigurationChangedEventArgs>? ConfigurationChanged;
 
@@ -196,6 +243,11 @@ public sealed class MainWindowState : BindableObject
             farm.Clear();
         }
 
+        foreach (var profile in ReleaseProfiles)
+        {
+            profile.Clear();
+        }
+
         RefreshDurations();
         RaiseConfigurationChanged(ConfigurationChangeSource.Farm);
     }
@@ -232,8 +284,17 @@ public sealed class FarmRowViewModel : BindableObject
     private readonly FarmSettings _model;
 
     public FarmRowViewModel(FarmSettings model)
+        : this(model, MappedKeyOption.CreateAll())
     {
-        _model = model;
+    }
+
+    public FarmRowViewModel(
+        FarmSettings model,
+        IReadOnlyList<MappedKeyOption> mappedKeyOptions)
+    {
+        _model = model ?? throw new ArgumentNullException(nameof(model));
+        ArgumentNullException.ThrowIfNull(mappedKeyOptions);
+        ActionKeyOptions = AddFallbackOption(mappedKeyOptions, GetActionReference());
     }
 
     public event Action? ValueChanged;
@@ -244,44 +305,43 @@ public sealed class FarmRowViewModel : BindableObject
 
     public string NpcAction => _model.NpcAction;
 
+    public IReadOnlyList<MappedKeyOption> ActionKeyOptions { get; }
+
     public string ActionKey
     {
         get => _model.ActionKey;
-        set => SetNormalized(value, _model.ActionKey, normalized => _model.ActionKey = normalized);
-    }
-
-    public string ReleaseType
-    {
-        get => _model.ReleaseType;
         set
         {
-            var normalized = LegacyNormalization.ReleaseType(value);
-            if (_model.ReleaseType == normalized)
+            var normalized = LegacyNormalization.Key(value);
+            if (_model.ActionKey == normalized)
             {
                 return;
             }
 
-            _model.ReleaseType = normalized;
-            _model.ReleaseKey = LegacyNormalization.ReleaseKey(normalized, _model.ReleaseKey);
+            _model.ActionKey = normalized;
             OnPropertyChanged();
-            OnPropertyChanged(nameof(ReleaseKey));
+            OnPropertyChanged(nameof(ActionReference));
             ValueChanged?.Invoke();
         }
     }
 
-    public string ReleaseKey
+    public string ActionReference
     {
-        get => _model.ReleaseKey;
+        get => GetActionReference();
         set
         {
-            var normalized = LegacyNormalization.ReleaseKey(_model.ReleaseType, value);
-            if (_model.ReleaseKey == normalized)
+            var reference = KeyMapReferences.Canonicalize(value);
+            var normalized = KeyMapReferences.TryGetDirect(reference, out var directKey)
+                ? directKey
+                : reference;
+            if (_model.ActionKey == normalized)
             {
                 return;
             }
 
-            _model.ReleaseKey = normalized;
+            _model.ActionKey = normalized;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(ActionKey));
             ValueChanged?.Invoke();
         }
     }
@@ -358,6 +418,24 @@ public sealed class FarmRowViewModel : BindableObject
         _model.TargetClientCaptureAspectRatio = null;
     }
 
+    private string GetActionReference() =>
+        KeyMapReferences.Canonicalize(_model.ActionKey);
+
+    private static IReadOnlyList<MappedKeyOption> AddFallbackOption(
+        IReadOnlyList<MappedKeyOption> options,
+        string reference)
+    {
+        if (reference.Length == 0 || options.Any(option =>
+                string.Equals(option.Reference, reference, StringComparison.OrdinalIgnoreCase)))
+        {
+            return options;
+        }
+
+        var result = options.ToList();
+        result.Insert(1, new MappedKeyOption(KeyMapReferences.DisplayName(reference), reference));
+        return result;
+    }
+
     private static bool IsValidRatioPair(double? x, double? y) =>
         x is >= 0d and <= 1d &&
         y is >= 0d and <= 1d &&
@@ -366,19 +444,6 @@ public sealed class FarmRowViewModel : BindableObject
 
     private static bool IsValidAspectRatio(double? value) =>
         value is > 0d && double.IsFinite(value.Value);
-
-    private void SetNormalized(string value, string current, Action<string> setter)
-    {
-        var normalized = LegacyNormalization.Key(value);
-        if (current == normalized)
-        {
-            return;
-        }
-
-        setter(normalized);
-        OnPropertyChanged();
-        ValueChanged?.Invoke();
-    }
 
     private void SetCoordinate(string value, int? current, Action<int?> setter)
     {
@@ -396,6 +461,77 @@ public sealed class FarmRowViewModel : BindableObject
     private static string Format(int? value) => value?.ToString() ?? string.Empty;
 }
 
+public sealed class ReleaseProfileRowViewModel : BindableObject
+{
+    private readonly ReleaseProfileSettings _model;
+
+    public ReleaseProfileRowViewModel(
+        ReleaseProfileSettings model,
+        IReadOnlyList<MappedKeyOption> keyOptions)
+    {
+        _model = model ?? throw new ArgumentNullException(nameof(model));
+        KeyOptions = AddFallbackOption(keyOptions, KeyReference);
+    }
+
+    public event Action? ValueChanged;
+
+    public ReleaseProfileSettings Model => _model;
+
+    public string Name => _model.Name;
+
+    public string DisplayName => _model.Name;
+
+    public ReleaseProfileKind Kind => _model.Kind;
+
+    public IReadOnlyList<MappedKeyOption> KeyOptions { get; }
+
+    public string KeyReference
+    {
+        get => KeyMapReferences.Canonicalize(_model.KeyReference);
+        set
+        {
+            var normalized = KeyMapReferences.Canonicalize(value);
+            if (KeyMapReferences.TryParse(normalized, out var kind, out _) &&
+                ((kind == KeyMapReferenceKind.Skill) != (_model.Kind == ReleaseProfileKind.Skill)))
+            {
+                normalized = string.Empty;
+            }
+
+            if (_model.KeyReference == normalized)
+            {
+                return;
+            }
+
+            _model.KeyReference = normalized;
+            OnPropertyChanged();
+            ValueChanged?.Invoke();
+        }
+    }
+
+    public void Clear()
+    {
+        _model.KeyReference = string.Empty;
+        OnPropertyChanged(nameof(KeyReference));
+        ValueChanged?.Invoke();
+    }
+
+    private static IReadOnlyList<MappedKeyOption> AddFallbackOption(
+        IReadOnlyList<MappedKeyOption> options,
+        string reference)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        if (reference.Length == 0 || options.Any(option =>
+                string.Equals(option.Reference, reference, StringComparison.OrdinalIgnoreCase)))
+        {
+            return options;
+        }
+
+        var result = options.ToList();
+        result.Insert(1, new MappedKeyOption(KeyMapReferences.DisplayName(reference), reference));
+        return result;
+    }
+}
+
 public sealed class FlowRowViewModel : BindableObject
 {
     private readonly MacroConfiguration _configuration;
@@ -405,13 +541,17 @@ public sealed class FlowRowViewModel : BindableObject
     public FlowRowViewModel(
         MacroConfiguration configuration,
         FlowSettings model,
-        MacroActionCompiler compiler)
+        MacroActionCompiler compiler,
+        IReadOnlyList<string>? releaseProfileOptions = null)
     {
         _configuration = configuration;
         _model = model;
         _compiler = compiler;
+        releaseProfileOptions ??= [LegacyValues.None, .. ReleaseProfileCatalog.Names];
         Groups = new ObservableCollection<FlowGroupRowViewModel>(
-            model.Groups.OrderBy(group => group.Slot).Select(group => new FlowGroupRowViewModel(group)));
+            model.Groups
+                .OrderBy(group => group.Slot)
+                .Select(group => new FlowGroupRowViewModel(group, releaseProfileOptions)));
         foreach (var group in Groups)
         {
             group.ValueChanged += RefreshDurations;
@@ -590,12 +730,16 @@ public sealed class FlowRowViewModel : BindableObject
 public sealed class FlowGroupRowViewModel : BindableObject
 {
     private readonly FlowGroupSettings _model;
+    private readonly IReadOnlyList<string> _releaseProfileOptions;
     private int _usedMilliseconds;
     private int _calculatedWaitMilliseconds;
 
-    public FlowGroupRowViewModel(FlowGroupSettings model)
+    public FlowGroupRowViewModel(
+        FlowGroupSettings model,
+        IReadOnlyList<string>? releaseProfileOptions = null)
     {
         _model = model;
+        _releaseProfileOptions = releaseProfileOptions ?? [LegacyValues.None, .. ReleaseProfileCatalog.Names];
     }
 
     public event Action? ValueChanged;
@@ -668,6 +812,26 @@ public sealed class FlowGroupRowViewModel : BindableObject
         }
     }
 
+    public IReadOnlyList<string> ReleaseProfileOptions => _releaseProfileOptions;
+
+    public string ReleaseProfileName
+    {
+        get => ReleaseProfileCatalog.NormalizeName(_model.ReleaseProfileName);
+        set
+        {
+            var normalized = ReleaseProfileCatalog.NormalizeName(value);
+            if (_model.ReleaseProfileName == normalized && _model.ReleaseSelectionIsExplicit)
+            {
+                return;
+            }
+
+            _model.ReleaseProfileName = normalized;
+            _model.ReleaseSelectionIsExplicit = true;
+            OnPropertyChanged();
+            ValueChanged?.Invoke();
+        }
+    }
+
     public int WaitMilliseconds
     {
         get => _model.WaitMs ?? _calculatedWaitMilliseconds;
@@ -697,6 +861,8 @@ public sealed class FlowGroupRowViewModel : BindableObject
         _model.PreType = LegacyValues.None;
         _model.PreValue = string.Empty;
         _model.FarmName = LegacyValues.None;
+        _model.ReleaseProfileName = LegacyValues.None;
+        _model.ReleaseSelectionIsExplicit = true;
         _model.WaitMs = 0;
         _model.DurationMs = 0;
         _usedMilliseconds = 0;

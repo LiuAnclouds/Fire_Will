@@ -52,7 +52,15 @@ public static class FlowAdaptiveCoordinatePreflight
                 npc.ClientCaptureAspectRatio);
 
             if (farm.NpcAction != "只点击NPC" &&
-                LegacyNormalization.Key(farm.ActionKey).Length == 0)
+                compiler.ResolveActionKey(configuration, farm).Length == 0)
+            {
+                continue;
+            }
+
+            // New release profiles are key-only and no longer depend on a
+            // per-farm mouse target. The remaining branch migrates old profiles.
+            if (group.ReleaseSelectionIsExplicit ||
+                ReleaseProfileCatalog.NormalizeName(group.ReleaseProfileName) != LegacyValues.None)
             {
                 continue;
             }

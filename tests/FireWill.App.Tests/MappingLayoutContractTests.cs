@@ -22,9 +22,9 @@ public sealed class MappingLayoutContractTests
         Assert.Contains(
             document.Descendants(presentation + "TextBlock"),
             element => (string?)element.Attribute("Text") == "装备按键");
-        Assert.DoesNotContain(
+        Assert.Contains(
             document.Descendants(presentation + "TextBlock"),
-            element => element.Attribute("Text")?.Value.Contains("映射", StringComparison.Ordinal) == true);
+            element => element.Attribute("Text")?.Value == "映射按键");
 
         var template = document
             .Descendants(presentation + "DataTemplate")
@@ -40,9 +40,9 @@ public sealed class MappingLayoutContractTests
         var state = new MainWindowState(ConfigurationDefaults.Create());
 
         Assert.Equal(
-            ["技能 9", "技能 10", "技能 11", "技能 12",
-             "技能 5", "技能 6", "技能 7", "技能 8",
-             "技能 1", "技能 2", "技能 3", "技能 4"],
+            ["技能按键9", "技能按键10", "技能按键11", "技能按键12",
+             "技能按键5", "技能按键6", "技能按键7", "技能按键8",
+             "技能按键1", "技能按键2", "技能按键3", "技能按键4"],
             state.SkillMappingsForDisplay.Select(mapping => mapping.Label));
         Assert.Same(state.SkillMappings[0], state.SkillMappingsForDisplay[8]);
     }
@@ -58,8 +58,9 @@ public sealed class MappingLayoutContractTests
             .Where(value => value is not null)
             .ToArray();
 
-        Assert.Contains("↑ 切换技能点 · F5 记录", visibleText);
         Assert.Contains("↓ 切换 NPC · F6 记录", visibleText);
+        Assert.DoesNotContain("↑ 切换技能点 · F5 记录", visibleText);
+        Assert.DoesNotContain(visibleText, value => value!.Contains("记录技能点", StringComparison.Ordinal));
         Assert.DoesNotContain(visibleText, value => value!.Contains("循环", StringComparison.Ordinal));
     }
 

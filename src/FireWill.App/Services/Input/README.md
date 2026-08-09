@@ -74,7 +74,7 @@ input.MoveMouse(fallbackX, fallbackY, xRatio, yRatio, captureAspectRatio);
 input.ClickAbsolute(screenX, screenY, MouseInputButton.Left);
 if (input.TryGetCursorPosition(out var cursor))
 {
-    // Use cursor.X/cursor.Y for F5 skill-point or F6 NPC-point capture; Up/Down cycle targets.
+    // Use cursor.X/cursor.Y for F6 NPC-point capture; Down cycles NPC targets.
 }
 ```
 

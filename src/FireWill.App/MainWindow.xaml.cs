@@ -20,18 +20,14 @@ namespace FireWill.App;
 public partial class MainWindow : Window
 {
     private const string DefaultProfileName = "默认/未读取";
-    private const string SkillPointCaptureHotkey = "F5";
     private const string NpcPointCaptureHotkey = "F6";
-    private const string SkillPointSelectionHotkey = "Up";
     private const string NpcPointSelectionHotkey = "Down";
     private static readonly TimeSpan GameBindingPollInterval = TimeSpan.FromMilliseconds(750);
 
     private static readonly string[] ReservedHotkeys =
     [
         "Esc",
-        SkillPointCaptureHotkey,
         NpcPointCaptureHotkey,
-        SkillPointSelectionHotkey,
         NpcPointSelectionHotkey,
         "Ctrl+F9",
         "Ctrl+Alt+B",
@@ -61,7 +57,8 @@ public partial class MainWindow : Window
     private bool _shutdownComplete;
     private bool _hasBoundGameWindow;
     private bool _waitingForGameWindow;
-    private FarmRowViewModel? _selectedFarmCaptureTarget;
+    private int _hotkeysStarted;
+    private int _hotkeyRefreshQueued;
     private NpcRowViewModel? _selectedNpcCaptureTarget;
     private Action<string>? _captureCompletion;
     private bool _captureAsHotkey;
@@ -87,7 +84,6 @@ public partial class MainWindow : Window
         AttachState(_state);
         _configurationAutosave.Attach(_state);
         DataContext = _state;
-        FarmCaptureTargetComboBox.SelectedIndex = 0;
         RefreshCaptureTargetSnapshots();
         CurrentProfileText.Text = configuration.General.CurrentProfileName;
         StatusText.Text = startupStatus;
@@ -120,6 +116,7 @@ public partial class MainWindow : Window
         try
         {
             await _hotkeys.StartAsync();
+            Volatile.Write(ref _hotkeysStarted, 1);
             ApplyHotkeys(_scheduler.IsEnabled);
             SetMacroState(_scheduler.IsEnabled);
         }
@@ -149,6 +146,7 @@ public partial class MainWindow : Window
         }
 
         _shutdownStarted = true;
+        Volatile.Write(ref _hotkeysStarted, 0);
         _gameBindingTimer.Stop();
         _gameBindingTimer.Tick -= GameBindingTimer_Tick;
         IsEnabled = false;
@@ -335,23 +333,13 @@ public partial class MainWindow : Window
             var reserved = new HashSet<HotkeyGesture>(ReservedHotkeys.Select(HotkeyGesture.Parse));
 
             RegisterFixedHotkey(
-                SkillPointCaptureHotkey,
-                HandleSkillPointHotkey,
-                condition,
-                dispatchInline: true);
-            RegisterFixedHotkey(
                 NpcPointCaptureHotkey,
                 HandleNpcPointHotkey,
                 condition,
                 dispatchInline: true);
             RegisterFixedHotkey(
-                SkillPointSelectionHotkey,
-                _ => QueueSampleSelection(farm: true),
-                condition,
-                dispatchInline: true);
-            RegisterFixedHotkey(
                 NpcPointSelectionHotkey,
-                _ => QueueSampleSelection(farm: false),
+                _ => QueueNpcSelection(),
                 condition,
                 dispatchInline: true);
             RegisterFixedHotkey("Ctrl+F9", _ => CopyActiveWindowInfo(), static () => true);
@@ -469,8 +457,8 @@ public partial class MainWindow : Window
 
     private bool TryPassAdaptiveCoordinatePreflight(int slot)
     {
-        // Keep old profiles compatible until their first adaptive point is captured.
-        // Once migration starts, reject mixed flows before the first mouse action.
+        // Once NPC coordinate migration starts, reject mixed flows before the
+        // first mouse action. Release profiles no longer carry mouse targets.
         if (!HasAdaptiveCoordinates())
         {
             return true;
@@ -490,7 +478,7 @@ public partial class MainWindow : Window
         });
         var message =
             $"流程未执行：以下点位还没有窗口自适应坐标：{string.Join("、", labels)}。" +
-            "NPC点和技能目标点需要分别采集：F5 采技能目标，F6 采 NPC。";
+            "请在 NPC 与平台按键页选择 NPC 后按 F6 重新记录。";
         SetStatus(message);
         ShowQuietTip(message, 4200);
         return false;
@@ -633,13 +621,13 @@ public partial class MainWindow : Window
     private void ReplaceConfiguration(MacroConfiguration configuration)
     {
         _state.PropertyChanged -= State_PropertyChanged;
+        _state.ConfigurationChanged -= State_ConfigurationChanged;
         _state = new MainWindowState(configuration);
         AttachState(_state);
         _configurationAutosave.Attach(_state);
         _configurationAutosave.NotifyChanged();
         DataContext = _state;
         CurrentProfileText.Text = configuration.General.CurrentProfileName;
-        FarmCaptureTargetComboBox.SelectedIndex = 0;
         RefreshCaptureTargetSnapshots();
     }
 
@@ -647,6 +635,7 @@ public partial class MainWindow : Window
     {
         Volatile.Write(ref _skipGameCheck, state.SkipGameCheck ? 1 : 0);
         state.PropertyChanged += State_PropertyChanged;
+        state.ConfigurationChanged += State_ConfigurationChanged;
     }
 
     private void State_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -662,21 +651,53 @@ public partial class MainWindow : Window
         }
     }
 
-    private void FarmCaptureTargetComboBox_SelectionChanged(
-        object sender,
-        SelectionChangedEventArgs e)
+    private void State_ConfigurationChanged(object? sender, ConfigurationChangedEventArgs e)
     {
-        if (FarmCaptureTargetComboBox.SelectedItem is FarmRowViewModel target)
+        if (RequiresHotkeyRefresh(e.Source))
         {
-            Volatile.Write(ref _selectedFarmCaptureTarget, target);
+            QueueHotkeyRefresh();
+        }
+    }
+
+    private static bool RequiresHotkeyRefresh(ConfigurationChangeSource source) =>
+        source is ConfigurationChangeSource.General or ConfigurationChangeSource.Flow;
+
+    private void QueueHotkeyRefresh()
+    {
+        if (_shutdownStarted || Volatile.Read(ref _hotkeysStarted) == 0 ||
+            Interlocked.Exchange(ref _hotkeyRefreshQueued, 1) != 0)
+        {
+            return;
+        }
+
+        try
+        {
+            _ = Dispatcher.BeginInvoke(() =>
+            {
+                Interlocked.Exchange(ref _hotkeyRefreshQueued, 0);
+                if (_shutdownStarted || Volatile.Read(ref _hotkeysStarted) == 0)
+                {
+                    return;
+                }
+
+                try
+                {
+                    ApplyHotkeys(_scheduler.IsEnabled);
+                }
+                catch (Exception exception)
+                {
+                    SetStatus($"刷新全局热键失败：{exception.Message}");
+                }
+            }, DispatcherPriority.Background);
+        }
+        catch (InvalidOperationException)
+        {
+            Interlocked.Exchange(ref _hotkeyRefreshQueued, 0);
         }
     }
 
     private void RefreshCaptureTargetSnapshots()
     {
-        Volatile.Write(
-            ref _selectedFarmCaptureTarget,
-            FarmCaptureTargetComboBox.SelectedItem as FarmRowViewModel);
         Volatile.Write(ref _selectedNpcCaptureTarget, _state.SelectedNpc);
     }
 
@@ -684,7 +705,7 @@ public partial class MainWindow : Window
     {
         if (MessageBox.Show(
                 this,
-                "清空 7 个刷本项的动作键、释放设置和技能鼠标点？",
+                "清空 7 个刷本任务和 9 个技能/装备释放方案？",
                 "清空刷本设置",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Warning) != MessageBoxResult.Yes)
@@ -751,22 +772,6 @@ public partial class MainWindow : Window
             int.TryParse(tag, out var delta))
         {
             group.AdjustWait(delta);
-        }
-    }
-
-    private void CaptureFarmActionKey_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button { DataContext: FarmRowViewModel farm })
-        {
-            StartKeyCapture(value => farm.ActionKey = value, captureHotkey: false, $"{farm.Name} 动作键");
-        }
-    }
-
-    private void CaptureFarmReleaseKey_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button { DataContext: FarmRowViewModel farm })
-        {
-            StartKeyCapture(value => farm.ReleaseKey = value, captureHotkey: false, $"{farm.Name} 释放键");
         }
     }
 
@@ -893,17 +898,6 @@ public partial class MainWindow : Window
         return result;
     }
 
-    private async void CaptureFarmPoint_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button { DataContext: FarmRowViewModel farm })
-        {
-            await CapturePointAfterDelayAsync(
-                (point, xRatio, yRatio, aspectRatio) =>
-                    farm.SetTarget(point.X, point.Y, xRatio, yRatio, aspectRatio),
-                $"技能目标点：{farm.Name}");
-        }
-    }
-
     private async void CaptureNpcPoint_Click(object sender, RoutedEventArgs e)
     {
         var npc = _state.SelectedNpc;
@@ -998,90 +992,51 @@ public partial class MainWindow : Window
         }
     }
 
-    private void HandleSkillPointHotkey(HotkeyInvocation _) => HandleSampleHotkey(farm: true);
-
-    private void HandleNpcPointHotkey(HotkeyInvocation _) => HandleSampleHotkey(farm: false);
-
-    private void QueueSampleSelection(bool farm)
+    private void HandleNpcPointHotkey(HotkeyInvocation _)
     {
         if (_shutdownStarted || _windowLifetime.IsCancellationRequested)
         {
             return;
         }
 
-        object? nextTarget;
-        if (farm)
-        {
-            var farms = _state.Farms;
-            var count = farms.Count;
-            if (count == 0)
-            {
-                return;
-            }
-
-            var currentTarget = Volatile.Read(ref _selectedFarmCaptureTarget);
-            var current = currentTarget is null ? -1 : farms.IndexOf(currentTarget);
-            var next = farms[CyclicSelection.NextIndex(current, count)];
-            Volatile.Write(ref _selectedFarmCaptureTarget, next);
-            nextTarget = next;
-        }
-        else
-        {
-            var npcs = _state.Npcs;
-            var count = npcs.Count;
-            if (count == 0)
-            {
-                return;
-            }
-
-            var currentTarget = Volatile.Read(ref _selectedNpcCaptureTarget);
-            var current = currentTarget is null ? -1 : npcs.IndexOf(currentTarget);
-            var next = npcs[CyclicSelection.NextIndex(current, count)];
-            Volatile.Write(ref _selectedNpcCaptureTarget, next);
-            nextTarget = next;
-        }
-
-        _ = Dispatcher.BeginInvoke(() => ApplySampleSelection(nextTarget));
-    }
-
-    private void ApplySampleSelection(object target)
-    {
-        if (_shutdownStarted || _windowLifetime.IsCancellationRequested)
-        {
-            return;
-        }
-
-        if (target is FarmRowViewModel farm && _state.Farms.Contains(farm))
-        {
-            FarmCaptureTargetComboBox.SelectedItem = farm;
-            SetStatus($"当前技能点：{farm.Name}");
-            ShowQuietTip($"技能点目标：{farm.Name}\n↑ 切换技能点 · F5 记录", 1400);
-            return;
-        }
-
-        if (target is NpcRowViewModel npc && _state.Npcs.Contains(npc))
-        {
-            _state.SelectedNpc = npc;
-            SetStatus($"当前 NPC：{npc.Name}");
-            ShowQuietTip($"NPC 目标：{npc.Name}\n↓ 切换 NPC · F6 记录", 1400);
-        }
-    }
-
-    private void HandleSampleHotkey(bool farm)
-    {
-        object? captureTarget = farm
-            ? Volatile.Read(ref _selectedFarmCaptureTarget)
-            : Volatile.Read(ref _selectedNpcCaptureTarget);
-
+        var captureTarget = Volatile.Read(ref _selectedNpcCaptureTarget);
         if (!_inputSender.TryGetCursorPosition(out var point))
         {
-            SetStatus($"记录{(farm ? "技能目标点" : "NPC点")}失败：无法读取鼠标位置。");
+            SetStatus("记录 NPC点失败：无法读取鼠标位置。");
             return;
         }
 
-        // The inline hotkey dispatch snapshots target and cursor in input order;
-        // the queued dispatcher callback then commits that exact sample.
-        TrackPointCaptureTask(() => CaptureSampleFromHotkeyAsync(farm, captureTarget, point));
+        TrackPointCaptureTask(() => CaptureNpcSampleFromHotkeyAsync(captureTarget, point));
+    }
+
+    private void QueueNpcSelection()
+    {
+        if (_shutdownStarted || _windowLifetime.IsCancellationRequested)
+        {
+            return;
+        }
+
+        var npcs = _state.Npcs;
+        if (npcs.Count == 0)
+        {
+            return;
+        }
+
+        var currentTarget = Volatile.Read(ref _selectedNpcCaptureTarget);
+        var current = currentTarget is null ? -1 : npcs.IndexOf(currentTarget);
+        var next = npcs[CyclicSelection.NextIndex(current, npcs.Count)];
+        Volatile.Write(ref _selectedNpcCaptureTarget, next);
+        _ = Dispatcher.BeginInvoke(() =>
+        {
+            if (_shutdownStarted || !_state.Npcs.Contains(next))
+            {
+                return;
+            }
+
+            _state.SelectedNpc = next;
+            SetStatus($"当前 NPC：{next.Name}");
+            ShowQuietTip($"NPC 目标：{next.Name}\n↓ 切换 NPC · F6 记录", 1400);
+        });
     }
 
     private void TrackPointCaptureTask(Func<Task> taskFactory)
@@ -1118,9 +1073,8 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task CaptureSampleFromHotkeyAsync(
-        bool farm,
-        object? captureTarget,
+    private async Task CaptureNpcSampleFromHotkeyAsync(
+        NpcRowViewModel? captureTarget,
         ScreenPoint point)
     {
         if (_shutdownStarted || _windowLifetime.IsCancellationRequested)
@@ -1128,11 +1082,9 @@ public partial class MainWindow : Window
             return;
         }
 
-        var captureLabel = farm ? "技能目标点" : "NPC点";
-
         if (captureTarget is null)
         {
-            var message = $"记录{captureLabel}失败：当前没有可用目标。";
+            const string message = "记录 NPC点失败：当前没有可用目标。";
             SetStatus(message);
             ShowQuietTip(message, 1400);
             return;
@@ -1145,7 +1097,7 @@ public partial class MainWindow : Window
                 out var captureAspectRatio,
                 out var error))
         {
-            var message = $"记录{captureLabel}失败：{error}";
+            var message = $"记录 NPC点失败：{error}";
             SetStatus(message);
             ShowQuietTip(message, 1400);
             return;
@@ -1166,18 +1118,9 @@ public partial class MainWindow : Window
                     return;
                 }
 
-                if (captureTarget is FarmRowViewModel target)
-                {
-                    target.SetTarget(point.X, point.Y, xRatio, yRatio, captureAspectRatio);
-                    SetStatus($"已记录技能目标点 {target.Name}：窗口自适应坐标已启用");
-                    ShowQuietTip($"已记录技能目标点：{target.Name}\n窗口缩放自适应已启用", 1200);
-                }
-                else if (captureTarget is NpcRowViewModel npc)
-                {
-                    npc.SetPoint(point.X, point.Y, xRatio, yRatio, captureAspectRatio);
-                    SetStatus($"已记录 NPC点 {npc.Name}：窗口自适应坐标已启用");
-                    ShowQuietTip($"已记录 NPC点：{npc.Name}\n窗口缩放自适应已启用", 1200);
-                }
+                captureTarget.SetPoint(point.X, point.Y, xRatio, yRatio, captureAspectRatio);
+                SetStatus($"已记录 NPC点 {captureTarget.Name}：窗口自适应坐标已启用");
+                ShowQuietTip($"已记录 NPC点：{captureTarget.Name}\n窗口缩放自适应已启用", 1200);
 
                 _state.RefreshDurations();
             });
@@ -1238,9 +1181,7 @@ public partial class MainWindow : Window
             double.IsFinite(y.Value);
 
         return _state.Configuration.Npcs.Values.Any(
-                   npc => IsConfigured(npc.ClientXRatio, npc.ClientYRatio)) ||
-               _state.Configuration.Farms.Values.Any(
-                   farm => IsConfigured(farm.TargetClientXRatio, farm.TargetClientYRatio));
+            npc => IsConfigured(npc.ClientXRatio, npc.ClientYRatio));
     }
 
     private async void BindGameWindow_Click(object sender, RoutedEventArgs e)

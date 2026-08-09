@@ -118,6 +118,7 @@ public sealed class ConfigurationAutosaveCoordinatorTests
         state.Flows[0].Groups[0].Enabled = true;
         state.SkillMappings[0].Key = "W";
         state.ItemMappings[0].Key = "E";
+        state.ReleaseProfiles[0].KeyReference = "skill:2";
 
         await coordinator.FlushAsync().WaitAsync(Timeout);
 

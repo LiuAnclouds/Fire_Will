@@ -72,7 +72,7 @@ public sealed class LegacyIniProfileSerializerTests
         Assert.Null(configuration.Npcs["家里挑战自我NPC"].ClientYRatio);
 
         var migratedFarm = configuration.Farms["家里挑战自我x10"];
-        Assert.Equal("W", migratedFarm.ActionKey);
+        Assert.Equal("direct:W", migratedFarm.ActionKey);
         Assert.Equal(LegacyValues.ItemKeyRelease, migratedFarm.ReleaseType);
         Assert.Equal("Tab", migratedFarm.ReleaseKey);
         Assert.Equal(300, migratedFarm.TargetX);

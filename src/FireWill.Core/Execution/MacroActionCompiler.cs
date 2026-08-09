@@ -34,9 +34,26 @@ public sealed class MacroActionCompiler
         CompilePreCommand(flow, group, builder);
         builder.Add(new StopBoundaryAction());
         var farmName = LegacyNormalization.FarmName(group.FarmName);
-        if (farmName != LegacyValues.None)
+        FarmSettings? farm = null;
+        var taskSucceeded = true;
+        if (farmName != LegacyValues.None && configuration.Farms.TryGetValue(farmName, out farm))
         {
-            CompileFarm(configuration, flow, farmName, builder);
+            taskSucceeded = CompileFarmTask(configuration, flow, farm, builder);
+        }
+        else if (farmName != LegacyValues.None)
+        {
+            builder.Warn($"未知刷本项：{farmName}。");
+            taskSucceeded = false;
+        }
+
+        var releaseProfileName = ReleaseProfileCatalog.NormalizeName(group.ReleaseProfileName);
+        var hasLegacyRelease = !group.ReleaseSelectionIsExplicit &&
+            releaseProfileName == LegacyValues.None &&
+            farm is not null &&
+            LegacyNormalization.ReleaseType(farm.ReleaseType) != LegacyValues.None;
+        if (taskSucceeded && (releaseProfileName != LegacyValues.None || hasLegacyRelease))
+        {
+            CompileRelease(configuration, flow, group, farm, builder);
         }
 
         var wait = group.WaitMs is null
@@ -68,7 +85,47 @@ public sealed class MacroActionCompiler
                 : string.Empty;
         }
 
-        return LegacyNormalization.Key(raw);
+        return KeyMapReferences.Resolve(configuration.KeyMap, raw);
+    }
+
+    public string ResolveReleaseKey(MacroConfiguration configuration, string? releaseProfileName)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        var name = ReleaseProfileCatalog.NormalizeName(releaseProfileName);
+        if (name == LegacyValues.None ||
+            !configuration.ReleaseProfiles.TryGetValue(name, out var profile))
+        {
+            return string.Empty;
+        }
+
+        return ResolveReleaseKey(configuration, profile);
+    }
+
+    public string ResolveReleaseKey(
+        MacroConfiguration configuration,
+        ReleaseProfileSettings profile)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentNullException.ThrowIfNull(profile);
+
+        var expectedKind = profile.Kind == ReleaseProfileKind.Skill
+            ? KeyMapReferenceKind.Skill
+            : KeyMapReferenceKind.Item;
+        if (KeyMapReferences.TryParse(profile.KeyReference, out var kind, out _) &&
+            kind != expectedKind)
+        {
+            return string.Empty;
+        }
+
+        return KeyMapReferences.Resolve(configuration.KeyMap, profile.KeyReference);
+    }
+
+    public string ResolveActionKey(MacroConfiguration configuration, FarmSettings farm)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentNullException.ThrowIfNull(farm);
+
+        return KeyMapReferences.Resolve(configuration.KeyMap, farm.ActionKey);
     }
 
     private static void CompilePreCommand(
@@ -95,24 +152,29 @@ public sealed class MacroActionCompiler
         }
     }
 
-    private void CompileFarm(
+    private bool CompileFarmTask(
         MacroConfiguration configuration,
         FlowSettings flow,
-        string farmName,
+        FarmSettings farm,
         GroupActionBuilder builder)
     {
-        if (!configuration.Farms.TryGetValue(farmName, out var farm))
-        {
-            builder.Warn($"未知刷本项：{farmName}。");
-            return;
-        }
-
         if (!configuration.Npcs.TryGetValue(farm.NpcName, out var npc)
             || npc.X is null
             || npc.Y is null)
         {
             builder.Warn($"NPC未标定点击坐标：{farm.NpcName}。");
-            return;
+            return false;
+        }
+
+        var actionKey = string.Empty;
+        if (farm.NpcAction != "只点击NPC")
+        {
+            actionKey = ResolveActionKey(configuration, farm);
+            if (actionKey.Length == 0)
+            {
+                builder.Warn($"NPC动作缺少按键：{farm.NpcName} / {farm.NpcAction}。");
+                return false;
+            }
         }
 
         var npcProjection = NormalizeClientProjection(
@@ -131,41 +193,34 @@ public sealed class MacroActionCompiler
 
         if (farm.NpcAction != "只点击NPC")
         {
-            var actionKey = LegacyNormalization.Key(farm.ActionKey);
-            if (actionKey.Length == 0)
-            {
-                builder.Warn($"NPC动作缺少按键：{farm.NpcName} / {farm.NpcAction}。");
-                return;
-            }
-
             AddOrdinaryKey(builder, actionKey, flow);
         }
 
-        CompileRelease(configuration, flow, farm, builder);
+        return true;
     }
 
     private void CompileRelease(
         MacroConfiguration configuration,
         FlowSettings flow,
-        FarmSettings farm,
+        FlowGroupSettings group,
+        FarmSettings? farm,
         GroupActionBuilder builder)
     {
-        var releaseType = LegacyNormalization.ReleaseType(farm.ReleaseType);
-        if (releaseType == LegacyValues.None)
-        {
-            return;
-        }
-
-        var releaseKey = ResolveReleaseKey(configuration, farm);
+        var releaseProfileName = ReleaseProfileCatalog.NormalizeName(group.ReleaseProfileName);
+        var isProfileRelease = releaseProfileName != LegacyValues.None;
+        var releaseKey = isProfileRelease
+            ? ResolveReleaseKey(configuration, releaseProfileName)
+            : farm is null ? string.Empty : ResolveReleaseKey(configuration, farm);
         if (releaseKey.Length == 0)
         {
-            builder.Warn(GetReleaseKeyError(configuration, farm, releaseType));
-            return;
-        }
-
-        if (farm.TargetX is null || farm.TargetY is null)
-        {
-            builder.Warn($"刷本项已配置自动释放，但未标定技能鼠标点：{farm.Name}。");
+            builder.Warn(isProfileRelease
+                ? $"技能释放方案缺少平台映射键：{releaseProfileName}。"
+                : farm is null
+                    ? "技能释放方案未选择有效按键。"
+                    : GetReleaseKeyError(
+                        configuration,
+                        farm,
+                        LegacyNormalization.ReleaseType(farm.ReleaseType)));
             return;
         }
 
@@ -175,17 +230,20 @@ public sealed class MacroActionCompiler
             flow.HeroSelectDelayMs,
             HeroSelectMinimumHoldMs,
             HeroSelectMaximumHoldMs);
-        var targetProjection = NormalizeClientProjection(
-            farm.TargetClientXRatio,
-            farm.TargetClientYRatio,
-            farm.TargetClientCaptureAspectRatio);
-        builder.Add(new MoveMouseAction(
-            farm.TargetX.Value,
-            farm.TargetY.Value,
-            targetProjection.X,
-            targetProjection.Y,
-            targetProjection.CaptureAspectRatio));
-        builder.AddCountedDelay(flow.ReleaseMouseMoveDelayMs, "release-mouse-move");
+        if (!isProfileRelease && farm?.TargetX is not null && farm.TargetY is not null)
+        {
+            var targetProjection = NormalizeClientProjection(
+                farm.TargetClientXRatio,
+                farm.TargetClientYRatio,
+                farm.TargetClientCaptureAspectRatio);
+            builder.Add(new MoveMouseAction(
+                farm.TargetX.Value,
+                farm.TargetY.Value,
+                targetProjection.X,
+                targetProjection.Y,
+                targetProjection.CaptureAspectRatio));
+            builder.AddCountedDelay(flow.ReleaseMouseMoveDelayMs, "release-mouse-move");
+        }
 
         if (LegacyNormalization.IsTeleportKey(releaseKey))
         {

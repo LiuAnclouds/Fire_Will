@@ -161,7 +161,7 @@ public sealed class WindowsInputSender : IInputSink
             if (captureAspectRatio is not > 0d || !double.IsFinite(captureAspectRatio.Value))
             {
                 throw new InvalidOperationException(
-                    "该点缺少窗口自适应信息，流程已停止。请用 F5 或 F6 重新记录对应点位。");
+                    "该点缺少窗口自适应信息，流程已停止。请在 NPC 与平台按键页按 F6 重新记录 NPC 点位。");
             }
 
             projectionContext = projectionContextProvider?.Invoke();
@@ -188,7 +188,7 @@ public sealed class WindowsInputSender : IInputSink
         else if (adaptiveModeProvider?.Invoke() == true)
         {
             throw new InvalidOperationException(
-                "该流程的点位信息不完整，流程已停止。请用 F5 或 F6 记录对应点位。");
+                "该流程的点位信息不完整，流程已停止。请在 NPC 与平台按键页按 F6 记录 NPC 点位。");
         }
 
         MoveMouseAbsolute(x, y);

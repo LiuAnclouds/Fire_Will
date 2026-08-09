@@ -11,6 +11,7 @@ public sealed class ConfigurationDefaultsTests
 
         Assert.Equal(5, configuration.Npcs.Count);
         Assert.Equal(7, configuration.Farms.Count);
+        Assert.Equal(9, configuration.ReleaseProfiles.Count);
         Assert.Equal(8, configuration.Flows.Count);
         Assert.All(configuration.Flows, flow => Assert.Equal(8, flow.Groups.Count));
         Assert.Equal(12, configuration.KeyMap.Skills.Count);
