@@ -45,5 +45,6 @@ public sealed class GameWindowAutoBinderTests
             "War3",
             "Warcraft III",
             "Warcraft III",
-            new ScreenRectangle(10, 20, 1280, 720));
+            new ScreenRectangle(10, 20, 1280, 720),
+            new ScreenRectangle(2, -10, 1296, 759));
 }

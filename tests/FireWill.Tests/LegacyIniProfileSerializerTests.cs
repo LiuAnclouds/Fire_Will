@@ -101,6 +101,7 @@ public sealed class LegacyIniProfileSerializerTests
             y=390
             clientXRatio=0.25
             clientYRatio=0.75
+            clientCaptureAspectRatio=1.7777777777777777
             [NPC.妙木山挑战自我NPC]
             clientXRatio=0.5
             [NPC.家里挑战自我NPC]
@@ -117,6 +118,7 @@ public sealed class LegacyIniProfileSerializerTests
             targetY=705
             targetClientXRatio=0
             targetClientYRatio=1
+            targetClientCaptureAspectRatio=1.3333333333333333
             [Farm.家里追捕逃忍]
             targetClientXRatio=0.4
             targetClientYRatio=Infinity
@@ -126,6 +128,7 @@ public sealed class LegacyIniProfileSerializerTests
 
         var validNpc = configuration.Npcs["妙木山大蛤蟆"];
         Assert.Equal((0.25, 0.75), (validNpc.ClientXRatio, validNpc.ClientYRatio));
+        Assert.Equal(1.7777777777777777d, validNpc.ClientCaptureAspectRatio);
         Assert.Equal((845, 390), (validNpc.X, validNpc.Y));
         Assert.Null(configuration.Npcs["妙木山挑战自我NPC"].ClientXRatio);
         Assert.Null(configuration.Npcs["妙木山挑战自我NPC"].ClientYRatio);
@@ -138,6 +141,7 @@ public sealed class LegacyIniProfileSerializerTests
 
         var validFarm = configuration.Farms["家里挑战自我x5"];
         Assert.Equal((0d, 1d), (validFarm.TargetClientXRatio, validFarm.TargetClientYRatio));
+        Assert.Equal(1.3333333333333333d, validFarm.TargetClientCaptureAspectRatio);
         Assert.Null(configuration.Farms["家里追捕逃忍"].TargetClientXRatio);
         Assert.Null(configuration.Farms["家里追捕逃忍"].TargetClientYRatio);
     }
@@ -149,11 +153,13 @@ public sealed class LegacyIniProfileSerializerTests
         var npc = configuration.Npcs["妙木山大蛤蟆"];
         npc.ClientXRatio = 0.12345678901234568d;
         npc.ClientYRatio = 0.875d;
+        npc.ClientCaptureAspectRatio = 1.7777777777777777d;
         var farm = configuration.Farms["家里挑战自我x5"];
         farm.TargetX = 942;
         farm.TargetY = 705;
         farm.TargetClientXRatio = 0d;
         farm.TargetClientYRatio = 1d;
+        farm.TargetClientCaptureAspectRatio = 1.3333333333333333d;
 
         var originalCulture = CultureInfo.CurrentCulture;
         string serialized;
@@ -171,16 +177,78 @@ public sealed class LegacyIniProfileSerializerTests
 
         Assert.Contains("clientXRatio=0.12345678901234568", serialized, StringComparison.Ordinal);
         Assert.Contains("clientYRatio=0.875", serialized, StringComparison.Ordinal);
+        Assert.Contains("clientCaptureAspectRatio=1.7777777777777777", serialized, StringComparison.Ordinal);
         Assert.Contains("targetClientXRatio=0", serialized, StringComparison.Ordinal);
         Assert.Contains("targetClientYRatio=1", serialized, StringComparison.Ordinal);
+        Assert.Contains("targetClientCaptureAspectRatio=1.3333333333333333", serialized, StringComparison.Ordinal);
         Assert.Equal((845, 390), (roundTripped.Npcs["妙木山大蛤蟆"].X, roundTripped.Npcs["妙木山大蛤蟆"].Y));
         Assert.Equal(
             (npc.ClientXRatio, npc.ClientYRatio),
             (roundTripped.Npcs["妙木山大蛤蟆"].ClientXRatio, roundTripped.Npcs["妙木山大蛤蟆"].ClientYRatio));
+        Assert.Equal(
+            npc.ClientCaptureAspectRatio,
+            roundTripped.Npcs["妙木山大蛤蟆"].ClientCaptureAspectRatio);
         Assert.Equal((942, 705), (roundTripped.Farms["家里挑战自我x5"].TargetX, roundTripped.Farms["家里挑战自我x5"].TargetY));
         Assert.Equal(
             (farm.TargetClientXRatio, farm.TargetClientYRatio),
             (roundTripped.Farms["家里挑战自我x5"].TargetClientXRatio, roundTripped.Farms["家里挑战自我x5"].TargetClientYRatio));
+        Assert.Equal(
+            farm.TargetClientCaptureAspectRatio,
+            roundTripped.Farms["家里挑战自我x5"].TargetClientCaptureAspectRatio);
+    }
+
+    [Fact]
+    public void Serialize_ClientProjectionFp64Values_RoundTripsBitExactly()
+    {
+        var configuration = ConfigurationDefaults.Create();
+        var npc = configuration.Npcs["妙木山大蛤蟆"];
+        npc.ClientXRatio = Math.BitIncrement(0.5d);
+        npc.ClientYRatio = Math.BitDecrement(1d);
+        npc.ClientCaptureAspectRatio = Math.BitIncrement(16d / 9d);
+        var farm = configuration.Farms["家里挑战自我x5"];
+        farm.TargetClientXRatio = Math.BitDecrement(0.5d);
+        farm.TargetClientYRatio = double.Epsilon;
+        farm.TargetClientCaptureAspectRatio = Math.BitDecrement(4d / 3d);
+
+        var roundTripped = LegacyIniProfileSerializer.Parse(
+            LegacyIniProfileSerializer.Serialize(configuration));
+        var roundTrippedNpc = roundTripped.Npcs[npc.Name];
+        var roundTrippedFarm = roundTripped.Farms[farm.Name];
+
+        AssertSameBits(npc.ClientXRatio, roundTrippedNpc.ClientXRatio);
+        AssertSameBits(npc.ClientYRatio, roundTrippedNpc.ClientYRatio);
+        AssertSameBits(npc.ClientCaptureAspectRatio, roundTrippedNpc.ClientCaptureAspectRatio);
+        AssertSameBits(farm.TargetClientXRatio, roundTrippedFarm.TargetClientXRatio);
+        AssertSameBits(farm.TargetClientYRatio, roundTrippedFarm.TargetClientYRatio);
+        AssertSameBits(
+            farm.TargetClientCaptureAspectRatio,
+            roundTrippedFarm.TargetClientCaptureAspectRatio);
+    }
+
+    [Fact]
+    public void Parse_V013RatiosWithoutCaptureAspect_PreservesMigrationSignal()
+    {
+        const string profile = """
+            [NPC.家里挑战自我NPC]
+            clientXRatio=0.4
+            clientYRatio=0.6
+            [Farm.家里挑战自我x5]
+            targetClientXRatio=0.5
+            targetClientYRatio=0.75
+            """;
+
+        var configuration = LegacyIniProfileSerializer.Parse(profile);
+        var serialized = LegacyIniProfileSerializer.Serialize(configuration);
+
+        Assert.Equal(0.4d, configuration.Npcs["家里挑战自我NPC"].ClientXRatio);
+        Assert.Equal(0.6d, configuration.Npcs["家里挑战自我NPC"].ClientYRatio);
+        Assert.Null(configuration.Npcs["家里挑战自我NPC"].ClientCaptureAspectRatio);
+        Assert.Equal(0.5d, configuration.Farms["家里挑战自我x5"].TargetClientXRatio);
+        Assert.Equal(0.75d, configuration.Farms["家里挑战自我x5"].TargetClientYRatio);
+        Assert.Null(configuration.Farms["家里挑战自我x5"].TargetClientCaptureAspectRatio);
+        Assert.Contains("clientXRatio=0.4", serialized, StringComparison.Ordinal);
+        Assert.Contains("targetClientXRatio=0.5", serialized, StringComparison.Ordinal);
+        Assert.DoesNotContain("CaptureAspectRatio=", serialized, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -190,21 +258,27 @@ public sealed class LegacyIniProfileSerializerTests
         var npc = configuration.Npcs["妙木山大蛤蟆"];
         npc.ClientXRatio = 0.5d;
         npc.ClientYRatio = null;
+        npc.ClientCaptureAspectRatio = 16d / 9d;
         var farm = configuration.Farms["家里挑战自我x5"];
         farm.TargetClientXRatio = 2d;
         farm.TargetClientYRatio = 0.5d;
+        farm.TargetClientCaptureAspectRatio = 4d / 3d;
 
         var serialized = LegacyIniProfileSerializer.Serialize(configuration);
         var roundTripped = LegacyIniProfileSerializer.Parse(serialized);
 
         Assert.DoesNotContain("clientXRatio=", serialized, StringComparison.Ordinal);
         Assert.DoesNotContain("clientYRatio=", serialized, StringComparison.Ordinal);
+        Assert.DoesNotContain("clientCaptureAspectRatio=", serialized, StringComparison.Ordinal);
         Assert.DoesNotContain("targetClientXRatio=", serialized, StringComparison.Ordinal);
         Assert.DoesNotContain("targetClientYRatio=", serialized, StringComparison.Ordinal);
+        Assert.DoesNotContain("targetClientCaptureAspectRatio=", serialized, StringComparison.Ordinal);
         Assert.Null(roundTripped.Npcs["妙木山大蛤蟆"].ClientXRatio);
         Assert.Null(roundTripped.Npcs["妙木山大蛤蟆"].ClientYRatio);
+        Assert.Null(roundTripped.Npcs["妙木山大蛤蟆"].ClientCaptureAspectRatio);
         Assert.Null(roundTripped.Farms["家里挑战自我x5"].TargetClientXRatio);
         Assert.Null(roundTripped.Farms["家里挑战自我x5"].TargetClientYRatio);
+        Assert.Null(roundTripped.Farms["家里挑战自我x5"].TargetClientCaptureAspectRatio);
     }
 
     [Fact]
@@ -276,6 +350,15 @@ public sealed class LegacyIniProfileSerializerTests
     private static string Sha256(string path)
     {
         return Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
+    }
+
+    private static void AssertSameBits(double? expected, double? actual)
+    {
+        Assert.NotNull(expected);
+        Assert.NotNull(actual);
+        Assert.Equal(
+            BitConverter.DoubleToInt64Bits(expected.Value),
+            BitConverter.DoubleToInt64Bits(actual.Value));
     }
 
     private static string? FindLegacyRoot()

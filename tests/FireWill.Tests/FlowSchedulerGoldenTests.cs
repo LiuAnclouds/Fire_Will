@@ -20,7 +20,7 @@ public sealed class FlowSchedulerGoldenTests
         var result = await scheduler.RunFlowAsync(flow);
 
         Assert.Equal(FlowRunStatus.Completed, result.Status);
-        Assert.Equal((843, 413, 0.4, 0.6), input.LastMove);
+        Assert.Equal((843, 413, 0.4, 0.6, (double?)null), input.LastMove);
     }
 
     [Fact]

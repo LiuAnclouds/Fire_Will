@@ -115,12 +115,16 @@ public sealed class MacroActionCompiler
             return;
         }
 
-        var npcRatios = NormalizeClientRatios(npc.ClientXRatio, npc.ClientYRatio);
+        var npcProjection = NormalizeClientProjection(
+            npc.ClientXRatio,
+            npc.ClientYRatio,
+            npc.ClientCaptureAspectRatio);
         builder.Add(new MoveMouseAction(
             npc.X.Value,
             npc.Y.Value,
-            npcRatios.X,
-            npcRatios.Y));
+            npcProjection.X,
+            npcProjection.Y,
+            npcProjection.CaptureAspectRatio));
         builder.AddCountedDelay(flow.MouseMoveDelayMs, "npc-mouse-move");
         builder.Add(new LeftClickAction());
         builder.AddCountedDelay(flow.NpcClickDelayMs, "npc-click");
@@ -171,14 +175,16 @@ public sealed class MacroActionCompiler
             flow.HeroSelectDelayMs,
             HeroSelectMinimumHoldMs,
             HeroSelectMaximumHoldMs);
-        var targetRatios = NormalizeClientRatios(
+        var targetProjection = NormalizeClientProjection(
             farm.TargetClientXRatio,
-            farm.TargetClientYRatio);
+            farm.TargetClientYRatio,
+            farm.TargetClientCaptureAspectRatio);
         builder.Add(new MoveMouseAction(
             farm.TargetX.Value,
             farm.TargetY.Value,
-            targetRatios.X,
-            targetRatios.Y));
+            targetProjection.X,
+            targetProjection.Y,
+            targetProjection.CaptureAspectRatio));
         builder.AddCountedDelay(flow.ReleaseMouseMoveDelayMs, "release-mouse-move");
 
         if (LegacyNormalization.IsTeleportKey(releaseKey))
@@ -252,14 +258,23 @@ public sealed class MacroActionCompiler
         return $"刷本项缺少释放按键或槽位映射：{farm.Name}。";
     }
 
-    private static (double? X, double? Y) NormalizeClientRatios(double? x, double? y)
+    private static (double? X, double? Y, double? CaptureAspectRatio) NormalizeClientProjection(
+        double? x,
+        double? y,
+        double? captureAspectRatio)
     {
-        return x is >= 0d and <= 1d &&
-            y is >= 0d and <= 1d &&
-            double.IsFinite(x.Value) &&
-            double.IsFinite(y.Value)
-                ? (x, y)
-                : (null, null);
+        if (x is not (>= 0d and <= 1d) ||
+            y is not (>= 0d and <= 1d) ||
+            !double.IsFinite(x.Value) ||
+            !double.IsFinite(y.Value))
+        {
+            return (null, null, null);
+        }
+
+        return captureAspectRatio is > 0d &&
+            double.IsFinite(captureAspectRatio.Value)
+                ? (x, y, captureAspectRatio)
+                : (x, y, null);
     }
 
     private sealed class GroupActionBuilder

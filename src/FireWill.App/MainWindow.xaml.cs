@@ -71,7 +71,8 @@ public partial class MainWindow : Window
         InitializeComponent();
         _quietTip = new QuietTipService(Dispatcher);
         _inputSender = new WindowsInputSender(
-            () => _gameWindow.TryGetBoundClientBounds(out var bounds) ? bounds : null);
+            () => _gameWindow.TryGetBoundProjectionContext(out var context) ? context : null,
+            HasAdaptiveCoordinates);
 
         _settingsRoot = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -438,10 +439,44 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (!TryPassAdaptiveCoordinatePreflight(slot))
+        {
+            return;
+        }
+
         var flowName = _state.Configuration.GetFlow(slot).Name;
         SetStatus($"正在执行流程：{flowName}");
         var result = await _scheduler.RunFlowAsync(_state.Configuration, slot);
         ReportFlowResult(result);
+    }
+
+    private bool TryPassAdaptiveCoordinatePreflight(int slot)
+    {
+        // Keep old profiles compatible until their first adaptive point is captured.
+        // Once migration starts, reject mixed flows before the first mouse action.
+        if (!HasAdaptiveCoordinates())
+        {
+            return true;
+        }
+
+        var missing = FlowAdaptiveCoordinatePreflight.FindMissing(_state.Configuration, slot);
+        if (missing.Count == 0)
+        {
+            return true;
+        }
+
+        var labels = missing.Select(issue => issue.Kind switch
+        {
+            AdaptiveCoordinatePointKind.Npc => $"NPC点「{issue.PointName}」",
+            AdaptiveCoordinatePointKind.SkillTarget => $"技能目标点「{issue.PointName}」",
+            _ => issue.PointName,
+        });
+        var message =
+            $"流程未执行：以下点位还没有窗口自适应坐标：{string.Join("、", labels)}。" +
+            "NPC点和技能目标点需要分别采集：F7/F8 采 NPC，F5/F6 采技能目标。";
+        SetStatus(message);
+        ShowQuietTip(message, 4200);
+        return false;
     }
 
     private void ReportFlowResult(FlowRunResult result)
@@ -823,8 +858,9 @@ public partial class MainWindow : Window
         if (sender is Button { DataContext: FarmRowViewModel farm })
         {
             await CapturePointAfterDelayAsync(
-                (point, xRatio, yRatio) => farm.SetTarget(point.X, point.Y, xRatio, yRatio),
-                farm.Name);
+                (point, xRatio, yRatio, aspectRatio) =>
+                    farm.SetTarget(point.X, point.Y, xRatio, yRatio, aspectRatio),
+                $"技能目标点：{farm.Name}");
         }
     }
 
@@ -832,12 +868,13 @@ public partial class MainWindow : Window
     {
         var npc = _state.SelectedNpc;
         await CapturePointAfterDelayAsync(
-            (point, xRatio, yRatio) => npc.SetPoint(point.X, point.Y, xRatio, yRatio),
-            npc.Name);
+            (point, xRatio, yRatio, aspectRatio) =>
+                npc.SetPoint(point.X, point.Y, xRatio, yRatio, aspectRatio),
+            $"NPC点：{npc.Name}");
     }
 
     private Task CapturePointAfterDelayAsync(
-        Action<ScreenPoint, double, double> setter,
+        Action<ScreenPoint, double, double, double> setter,
         string label)
     {
         lock (_pointCaptureLock)
@@ -865,7 +902,7 @@ public partial class MainWindow : Window
     }
 
     private async Task CapturePointAfterDelayCoreAsync(
-        Action<ScreenPoint, double, double> setter,
+        Action<ScreenPoint, double, double, double> setter,
         string label,
         CancellationToken cancellationToken)
     {
@@ -892,7 +929,12 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (!TryNormalizeCapturedPoint(point, out var xRatio, out var yRatio, out var error))
+        if (!TryNormalizeCapturedPoint(
+                point,
+                out var xRatio,
+                out var yRatio,
+                out var captureAspectRatio,
+                out var error))
         {
             var message = $"记录 {label} 失败：{error}";
             SetStatus(message);
@@ -900,7 +942,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        setter(point, xRatio, yRatio);
+        setter(point, xRatio, yRatio, captureAspectRatio);
         _state.RefreshDurations();
         SetStatus($"已记录 {label}：窗口自适应坐标已启用");
         ShowQuietTip($"已记录 {label}\n窗口缩放自适应已启用", 1200);
@@ -1018,7 +1060,12 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (!TryNormalizeCapturedPoint(point, out var xRatio, out var yRatio, out var error))
+        if (!TryNormalizeCapturedPoint(
+                point,
+                out var xRatio,
+                out var yRatio,
+                out var captureAspectRatio,
+                out var error))
         {
             var message = $"采点失败：{error}";
             SetStatus(message);
@@ -1038,15 +1085,15 @@ public partial class MainWindow : Window
                 if (farm)
                 {
                     var target = FarmCaptureTargetComboBox.SelectedItem as FarmRowViewModel ?? _state.Farms[0];
-                    target.SetTarget(point.X, point.Y, xRatio, yRatio);
-                    SetStatus($"已记录 {target.Name}：窗口自适应坐标已启用");
-                    ShowQuietTip($"已记录 {target.Name}\n窗口缩放自适应已启用", 1200);
+                    target.SetTarget(point.X, point.Y, xRatio, yRatio, captureAspectRatio);
+                    SetStatus($"已记录技能目标点 {target.Name}：窗口自适应坐标已启用");
+                    ShowQuietTip($"已记录技能目标点：{target.Name}\n窗口缩放自适应已启用", 1200);
                 }
                 else
                 {
-                    _state.SelectedNpc.SetPoint(point.X, point.Y, xRatio, yRatio);
-                    SetStatus($"已记录 {_state.SelectedNpc.Name}：窗口自适应坐标已启用");
-                    ShowQuietTip($"已记录 {_state.SelectedNpc.Name}\n窗口缩放自适应已启用", 1200);
+                    _state.SelectedNpc.SetPoint(point.X, point.Y, xRatio, yRatio, captureAspectRatio);
+                    SetStatus($"已记录 NPC点 {_state.SelectedNpc.Name}：窗口自适应坐标已启用");
+                    ShowQuietTip($"已记录 NPC点：{_state.SelectedNpc.Name}\n窗口缩放自适应已启用", 1200);
                 }
 
                 _state.RefreshDurations();
@@ -1062,23 +1109,30 @@ public partial class MainWindow : Window
         ScreenPoint point,
         out double xRatio,
         out double yRatio,
+        out double captureAspectRatio,
         out string error)
     {
-        if (!_gameWindow.TryGetBoundClientBounds(out var clientBounds))
+        if (!_gameWindow.TryGetBoundProjectionContext(out var context))
         {
             if (!_gameWindow.TryFindAndBind(out var binding))
             {
                 xRatio = 0;
                 yRatio = 0;
+                captureAspectRatio = 0;
                 error = "尚未绑定 Warcraft III 窗口。";
                 return false;
             }
 
             UpdateGameBinding(binding);
-            clientBounds = binding.ClientBounds;
+            context = binding.ProjectionContext;
         }
 
-        if (!ClientCoordinateProjector.TryNormalize(point, clientBounds, out xRatio, out yRatio))
+        if (!ClientCoordinateProjector.TryNormalize(
+                point,
+                context,
+                out xRatio,
+                out yRatio,
+                out captureAspectRatio))
         {
             error = "鼠标不在已绑定的 Warcraft III 客户区内。";
             return false;
@@ -1086,6 +1140,20 @@ public partial class MainWindow : Window
 
         error = string.Empty;
         return true;
+    }
+
+    private bool HasAdaptiveCoordinates()
+    {
+        static bool IsConfigured(double? x, double? y) =>
+            x is >= 0d and <= 1d &&
+            y is >= 0d and <= 1d &&
+            double.IsFinite(x.Value) &&
+            double.IsFinite(y.Value);
+
+        return _state.Configuration.Npcs.Values.Any(
+                   npc => IsConfigured(npc.ClientXRatio, npc.ClientYRatio)) ||
+               _state.Configuration.Farms.Values.Any(
+                   farm => IsConfigured(farm.TargetClientXRatio, farm.TargetClientYRatio));
     }
 
     private void MoveSampleSelection(bool farm, int direction)
@@ -1096,16 +1164,16 @@ public partial class MainWindow : Window
             var current = Math.Max(0, FarmCaptureTargetComboBox.SelectedIndex);
             FarmCaptureTargetComboBox.SelectedIndex = (current + direction + count) % count;
             var target = ((FarmRowViewModel)FarmCaptureTargetComboBox.SelectedItem).Name;
-            SetStatus($"采点目标：{target}");
-            ShowQuietTip($"鼠标点目标：{target}");
+            SetStatus($"技能目标点采样目标：{target}");
+            ShowQuietTip($"技能目标点：{target}");
             return;
         }
 
         var npcIndex = _state.Npcs.IndexOf(_state.SelectedNpc);
         var next = (npcIndex + direction + _state.Npcs.Count) % _state.Npcs.Count;
         _state.SelectedNpc = _state.Npcs[next];
-        SetStatus($"NPC 采点目标：{_state.SelectedNpc.Name}");
-        ShowQuietTip($"NPC目标：{_state.SelectedNpc.Name}");
+        SetStatus($"NPC点采样目标：{_state.SelectedNpc.Name}");
+        ShowQuietTip($"NPC点：{_state.SelectedNpc.Name}");
     }
 
     private void CancelPendingSamples()
@@ -1161,18 +1229,24 @@ public partial class MainWindow : Window
         var npcCount = _state.Npcs.Count(
             npc => npc.Model.X is not null &&
                    npc.Model.Y is not null &&
-                   (npc.Model.ClientXRatio is null || npc.Model.ClientYRatio is null));
+                   (npc.Model.ClientXRatio is null ||
+                    npc.Model.ClientYRatio is null ||
+                    npc.Model.ClientCaptureAspectRatio is null));
         var farmCount = _state.Farms.Count(
             farm => farm.Model.TargetX is not null &&
                     farm.Model.TargetY is not null &&
-                    (farm.Model.TargetClientXRatio is null || farm.Model.TargetClientYRatio is null));
+                    (farm.Model.TargetClientXRatio is null ||
+                     farm.Model.TargetClientYRatio is null ||
+                     farm.Model.TargetClientCaptureAspectRatio is null));
         var total = npcCount + farmCount;
         if (total == 0)
         {
             return;
         }
 
-        var message = $"有 {total} 个旧桌面坐标未启用窗口自适应，请在当前 War3 尺寸下用 F5-F8 或采点按钮重新记录。";
+        var message =
+            $"有 {total} 个旧点位缺少窗口投影信息。NPC点和技能目标点需要分别记录：" +
+            "F7/F8 采 NPC，F5/F6 采技能目标。";
         SetStatus(message);
         ShowQuietTip("旧坐标需要重新采集一次", 3600);
     }

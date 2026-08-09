@@ -12,7 +12,8 @@ public interface IInputSink
         int x,
         int y,
         double? clientXRatio = null,
-        double? clientYRatio = null);
+        double? clientYRatio = null,
+        double? captureAspectRatio = null);
 
     void LeftButtonDown();
 

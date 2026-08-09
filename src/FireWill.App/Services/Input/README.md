@@ -44,10 +44,16 @@ var gameWindow = new War3WindowService();
 if (gameWindow.TryBindForeground(out var game) ||
     gameWindow.TryFindAndBind(out game))
 {
-    // Input coordinates here are relative to the current game client area.
-    if (gameWindow.TryGetClientPointOnScreen(640, 360, out var screenPoint))
+    if (gameWindow.TryGetBoundProjectionContext(out var context) &&
+        ClientCoordinateProjector.TryNormalize(
+            capturedScreenPoint,
+            context,
+            out var xRatio,
+            out var yRatio,
+            out var captureAspectRatio))
     {
-        input.ClickAbsolute(screenPoint.X, screenPoint.Y);
+        // Persist xRatio, yRatio, and captureAspectRatio together. At runtime,
+        // read a fresh projection context immediately before moving the mouse.
     }
 }
 ```
@@ -58,11 +64,13 @@ The default executable names are `War3.exe` and `Warcraft III.exe`.
 ## Sending input
 
 ```csharp
-var input = new WindowsInputSender();
+var input = new WindowsInputSender(
+    () => gameWindow.TryGetBoundProjectionContext(out var context) ? context : null);
 input.KeyPress((ushort)'G');
 input.SendHotkey(HotkeyGesture.Parse("Alt+2"));
 input.SendUnicodeText("text");
 input.MoveMouseAbsolute(screenX, screenY);
+input.MoveMouse(fallbackX, fallbackY, xRatio, yRatio, captureAspectRatio);
 input.ClickAbsolute(screenX, screenY, MouseInputButton.Left);
 if (input.TryGetCursorPosition(out var cursor))
 {

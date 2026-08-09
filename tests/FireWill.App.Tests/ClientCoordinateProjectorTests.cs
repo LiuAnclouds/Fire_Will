@@ -5,6 +5,179 @@ namespace FireWill.App.Tests;
 public sealed class ClientCoordinateProjectorTests
 {
     [Fact]
+    public void TryNormalize_ProjectionContextReturnsOuterWindowAspect()
+    {
+        var context = new ScreenProjectionContext(
+            new ScreenRectangle(25, 66, 1065, 773),
+            1073d / 804d);
+
+        var normalized = ClientCoordinateProjector.TryNormalize(
+            new ScreenPoint(719, 543),
+            context,
+            out var xRatio,
+            out var yRatio,
+            out var captureAspectRatio);
+
+        Assert.True(normalized);
+        Assert.Equal(694d / 1064d, xRatio);
+        Assert.Equal(477d / 772d, yRatio);
+        Assert.Equal(1073d / 804d, captureAspectRatio);
+    }
+
+    [Fact]
+    public void ProjectWidescreen_ChangingFrom16By9To4By3ScalesFromClientCenter()
+    {
+        var projected = ClientCoordinateProjector.ProjectWidescreenOrFallback(
+            default,
+            xRatio: 0.75d,
+            yRatio: 0.25d,
+            captureAspectRatio: 16d / 9d,
+            currentContext: new ScreenProjectionContext(
+                new ScreenRectangle(0, 0, 1024, 768),
+                4d / 3d));
+
+        Assert.InRange(Math.Abs(projected.X - 853), 0, 1);
+        Assert.Equal(192, projected.Y);
+    }
+
+    [Fact]
+    public void ProjectWidescreen_UsesOuterAspectAndCurrentClientPixelSpan()
+    {
+        var sourceContext = new ScreenProjectionContext(
+            new ScreenRectangle(0, 0, 1920, 1080),
+            16d / 9d);
+        Assert.True(ClientCoordinateProjector.TryNormalize(
+            new ScreenPoint(1179, 667),
+            sourceContext,
+            out var xRatio,
+            out var yRatio,
+            out var captureAspectRatio));
+
+        var projected = ClientCoordinateProjector.ProjectWidescreenOrFallback(
+            default,
+            xRatio,
+            yRatio,
+            captureAspectRatio,
+            new ScreenProjectionContext(
+                new ScreenRectangle(25, 66, 1065, 773),
+                1073d / 804d));
+
+        Assert.Equal(new ScreenPoint(719, 543), projected);
+    }
+
+    [Fact]
+    public void ProjectWidescreen_SameAspectMatchesIndependentClientRatios()
+    {
+        var context = new ScreenProjectionContext(
+            new ScreenRectangle(300, 200, 1280, 720),
+            16d / 9d);
+
+        var projected = ClientCoordinateProjector.ProjectWidescreenOrFallback(
+            default,
+            xRatio: 0.4d,
+            yRatio: 0.6d,
+            captureAspectRatio: 16d / 9d,
+            currentContext: context);
+        var simple = ClientCoordinateProjector.ProjectOrFallback(
+            default,
+            xRatio: 0.4d,
+            yRatio: 0.6d,
+            context.ClientBounds);
+
+        Assert.Equal(simple, projected);
+    }
+
+    [Theory]
+    [InlineData(1024, 768, 4d / 3d)]
+    [InlineData(1065, 773, 1073d / 804d)]
+    [InlineData(1377, 811, 1393d / 850d)]
+    [InlineData(800, 1000, 0.8d)]
+    [InlineData(2560, 720, 32d / 9d)]
+    [InlineData(333, 777, 0.45d)]
+    public void ProjectWidescreen_RoundTripsThroughIrregularWindowWithinOnePixel(
+        int intermediateWidth,
+        int intermediateHeight,
+        double intermediateOuterAspect)
+    {
+        var sourceContext = new ScreenProjectionContext(
+            new ScreenRectangle(0, 0, 1920, 1080),
+            16d / 9d);
+        var sourcePoint = new ScreenPoint(1087, 643);
+        Assert.True(ClientCoordinateProjector.TryNormalize(
+            sourcePoint,
+            sourceContext,
+            out var sourceXRatio,
+            out var sourceYRatio,
+            out var sourceAspect));
+
+        var intermediateContext = new ScreenProjectionContext(
+            new ScreenRectangle(37, 59, intermediateWidth, intermediateHeight),
+            intermediateOuterAspect);
+        var intermediatePoint = ClientCoordinateProjector.ProjectWidescreenOrFallback(
+            default,
+            sourceXRatio,
+            sourceYRatio,
+            sourceAspect,
+            intermediateContext);
+        Assert.True(ClientCoordinateProjector.TryNormalize(
+            intermediatePoint,
+            intermediateContext,
+            out var intermediateXRatio,
+            out var intermediateYRatio,
+            out var capturedIntermediateAspect));
+
+        var roundTripped = ClientCoordinateProjector.ProjectWidescreenOrFallback(
+            default,
+            intermediateXRatio,
+            intermediateYRatio,
+            capturedIntermediateAspect,
+            sourceContext);
+
+        Assert.InRange(Math.Abs(roundTripped.X - sourcePoint.X), 0, 1);
+        Assert.InRange(Math.Abs(roundTripped.Y - sourcePoint.Y), 0, 1);
+    }
+
+    [Fact]
+    public void ProjectWidescreen_ValidRatioOutsideNarrowerViewIsNotClampedToEdge()
+    {
+        var bounds = new ScreenRectangle(100, 200, 640, 480);
+
+        var projected = ClientCoordinateProjector.ProjectWidescreenOrFallback(
+            default,
+            xRatio: 1d,
+            yRatio: 0.5d,
+            captureAspectRatio: 4d,
+            currentContext: new ScreenProjectionContext(bounds, 4d / 3d));
+
+        Assert.False(bounds.Contains(projected));
+        Assert.True(projected.X >= bounds.Right);
+        Assert.NotEqual(bounds.Right - 1, projected.X);
+    }
+
+    [Theory]
+    [InlineData(0d)]
+    [InlineData(-1d)]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    public void TryNormalize_InvalidProjectionAspect_ReturnsFalseAndClearsOutputs(
+        double projectionAspectRatio)
+    {
+        var normalized = ClientCoordinateProjector.TryNormalize(
+            new ScreenPoint(50, 60),
+            new ScreenProjectionContext(
+                new ScreenRectangle(0, 0, 100, 100),
+                projectionAspectRatio),
+            out var xRatio,
+            out var yRatio,
+            out var captureAspectRatio);
+
+        Assert.False(normalized);
+        Assert.Equal(0d, xRatio);
+        Assert.Equal(0d, yRatio);
+        Assert.Equal(0d, captureAspectRatio);
+    }
+
+    [Fact]
     public void TryNormalize_ThenProject_AdaptsFrom1920By1080To1280By720()
     {
         var originalBounds = new ScreenRectangle(0, 0, 1920, 1080);
@@ -138,17 +311,17 @@ public sealed class ClientCoordinateProjectorTests
     }
 
     [Fact]
-    public void ProjectOrFallback_ClampsRatiosToClientPixelRange()
+    public void ProjectOrFallback_OutOfRangeRatioReturnsAbsolutePoint()
     {
-        var bounds = new ScreenRectangle(-1920, -200, 1280, 720);
+        var fallback = new ScreenPoint(843, 413);
 
         var projected = ClientCoordinateProjector.ProjectOrFallback(
-            default,
+            fallback,
             -0.25,
             1.25,
-            bounds);
+            new ScreenRectangle(-1920, -200, 1280, 720));
 
-        Assert.Equal(new ScreenPoint(-1920, 519), projected);
+        Assert.Equal(fallback, projected);
     }
 
     [Fact]
@@ -181,6 +354,29 @@ public sealed class ClientCoordinateProjectorTests
             xRatio,
             yRatio,
             new ScreenRectangle(100, 200, 1280, 720));
+
+        Assert.Equal(fallback, projected);
+    }
+
+    [Theory]
+    [InlineData(-0.0001d, 0.5d)]
+    [InlineData(1.0001d, 0.5d)]
+    [InlineData(0.5d, -0.0001d)]
+    [InlineData(0.5d, 1.0001d)]
+    [InlineData(double.NaN, 0.5d)]
+    [InlineData(0.5d, double.PositiveInfinity)]
+    public void ProjectWidescreen_InvalidRatioReturnsAbsolutePoint(double xRatio, double yRatio)
+    {
+        var fallback = new ScreenPoint(843, 413);
+
+        var projected = ClientCoordinateProjector.ProjectWidescreenOrFallback(
+            fallback,
+            xRatio,
+            yRatio,
+            16d / 9d,
+            new ScreenProjectionContext(
+                new ScreenRectangle(0, 0, 1920, 1080),
+                16d / 9d));
 
         Assert.Equal(fallback, projected);
     }

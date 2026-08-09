@@ -17,11 +17,15 @@ public enum MouseInputButton
 public sealed class WindowsInputSender : IInputSink
 {
     private readonly object sendLock = new();
-    private readonly Func<ScreenRectangle?>? clientBoundsProvider;
+    private readonly Func<ScreenProjectionContext?>? projectionContextProvider;
+    private readonly Func<bool>? adaptiveModeProvider;
 
-    public WindowsInputSender(Func<ScreenRectangle?>? clientBoundsProvider = null)
+    public WindowsInputSender(
+        Func<ScreenProjectionContext?>? projectionContextProvider = null,
+        Func<bool>? adaptiveModeProvider = null)
     {
-        this.clientBoundsProvider = clientBoundsProvider;
+        this.projectionContextProvider = projectionContextProvider;
+        this.adaptiveModeProvider = adaptiveModeProvider;
     }
 
     public void KeyDown(ushort virtualKey) => SendKeyboardInput(virtualKey, keyUp: false);
@@ -136,9 +140,10 @@ public sealed class WindowsInputSender : IInputSink
         int x,
         int y,
         double? clientXRatio = null,
-        double? clientYRatio = null)
+        double? clientYRatio = null,
+        double? captureAspectRatio = null)
     {
-        ScreenRectangle? clientBounds = null;
+        ScreenProjectionContext? projectionContext = null;
         if (clientXRatio is not null || clientYRatio is not null)
         {
             if (clientXRatio is null || clientYRatio is null)
@@ -146,19 +151,47 @@ public sealed class WindowsInputSender : IInputSink
                 throw new InvalidOperationException("自适应鼠标坐标不完整，流程已停止。重新采集该点位后再试。");
             }
 
-            clientBounds = clientBoundsProvider?.Invoke();
-            if (clientBounds is not { Width: > 0, Height: > 0 })
+            if (!ClientCoordinateProjector.IsNormalizedRatio(clientXRatio) ||
+                !ClientCoordinateProjector.IsNormalizedRatio(clientYRatio))
+            {
+                throw new InvalidOperationException(
+                    "自适应鼠标坐标已损坏或超出有效范围，流程已停止。请重新录入该点位。");
+            }
+
+            if (captureAspectRatio is not > 0d || !double.IsFinite(captureAspectRatio.Value))
+            {
+                throw new InvalidOperationException(
+                    "该点缺少采集时的窗口比例，流程已停止。请在当前版本重新录入 NPC 和技能鼠标点。");
+            }
+
+            projectionContext = projectionContextProvider?.Invoke();
+            if (projectionContext is not { } context || !context.IsValid)
             {
                 throw new InvalidOperationException("Warcraft III 窗口客户区不可用，流程已停止以避免误点。");
             }
+
+            var projected = ClientCoordinateProjector.ProjectWidescreenOrFallback(
+                new ScreenPoint(x, y),
+                clientXRatio,
+                clientYRatio,
+                captureAspectRatio,
+                context);
+            if (!context.ClientBounds.Contains(projected))
+            {
+                throw new InvalidOperationException(
+                    "该点在当前 Warcraft III 视野外，流程已停止以避免点击边界位置。");
+            }
+
+            MoveMouseAbsolute(projected.X, projected.Y);
+            return;
+        }
+        else if (adaptiveModeProvider?.Invoke() == true)
+        {
+            throw new InvalidOperationException(
+                "当前配置已启用窗口自适应，但这个点仍是旧桌面坐标。请重新录入对应的 NPC 和技能鼠标点。");
         }
 
-        var target = ClientCoordinateProjector.ProjectOrFallback(
-            new ScreenPoint(x, y),
-            clientXRatio,
-            clientYRatio,
-            clientBounds);
-        MoveMouseAbsolute(target.X, target.Y);
+        MoveMouseAbsolute(x, y);
     }
 
     public bool TryGetCursorPosition(out ScreenPoint position)

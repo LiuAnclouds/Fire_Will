@@ -13,7 +13,8 @@ public sealed record MoveMouseAction(
     int X,
     int Y,
     double? ClientXRatio = null,
-    double? ClientYRatio = null) : MacroAction;
+    double? ClientYRatio = null,
+    double? CaptureAspectRatio = null) : MacroAction;
 
 public sealed record LeftClickAction(int HoldMilliseconds = 10) : MacroAction;
 

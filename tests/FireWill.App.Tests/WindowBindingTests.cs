@@ -33,6 +33,45 @@ public sealed class WindowBindingTests
             text);
     }
 
+    [Fact]
+    public void ProjectionContext_UsesOuterWindowAspectLikeWarcraftHelper()
+    {
+        var window = Binding(12345, 6789, "War3", "Warcraft III", "Warcraft III");
+
+        Assert.Equal(1296d / 759d, window.ProjectionContext.ProjectionAspectRatio);
+        Assert.Equal(window.ClientBounds, window.ProjectionContext.ClientBounds);
+    }
+
+    [Fact]
+    public void ScreenRectangle_ContainsDoesNotOverflowAtDesktopIntegerBoundary()
+    {
+        var rectangle = new ScreenRectangle(int.MaxValue, int.MaxValue, 2, 2);
+
+        Assert.True(rectangle.Contains(new ScreenPoint(int.MaxValue, int.MaxValue)));
+        Assert.Equal((long)int.MaxValue + 2, rectangle.Right);
+        Assert.Equal((long)int.MaxValue + 2, rectangle.Bottom);
+    }
+
+    [Theory]
+    [InlineData(0, 0, 0L, 1L)]
+    [InlineData(0, 0, 1L, 0L)]
+    [InlineData(10, 20, 9L, 21L)]
+    [InlineData(10, 20, 11L, 19L)]
+    [InlineData(int.MinValue, 0, 0L, 1L)]
+    public void TryCreateRectangle_RejectsEmptyInvertedOrOversizedGeometry(
+        int left,
+        int top,
+        long right,
+        long bottom)
+    {
+        Assert.False(War3WindowService.TryCreateRectangle(
+            left,
+            top,
+            right,
+            bottom,
+            out _));
+    }
+
     private static War3WindowBinding Binding(
         nint handle,
         uint processId,
@@ -45,5 +84,6 @@ public sealed class WindowBindingTests
             processName,
             title,
             className,
-            new ScreenRectangle(10, 20, 1280, 720));
+            new ScreenRectangle(10, 20, 1280, 720),
+            new ScreenRectangle(2, -10, 1296, 759));
 }

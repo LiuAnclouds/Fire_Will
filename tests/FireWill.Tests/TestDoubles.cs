@@ -9,7 +9,7 @@ internal sealed class TraceLog
 
 internal sealed class RecordingInput(TraceLog trace) : IInputSink
 {
-    public (int X, int Y, double? ClientXRatio, double? ClientYRatio)? LastMove { get; private set; }
+    public (int X, int Y, double? ClientXRatio, double? ClientYRatio, double? CaptureAspectRatio)? LastMove { get; private set; }
 
     public void KeyDown(string key) => trace.Entries.Add($"key-down:{key}");
 
@@ -19,9 +19,10 @@ internal sealed class RecordingInput(TraceLog trace) : IInputSink
         int x,
         int y,
         double? clientXRatio = null,
-        double? clientYRatio = null)
+        double? clientYRatio = null,
+        double? captureAspectRatio = null)
     {
-        LastMove = (x, y, clientXRatio, clientYRatio);
+        LastMove = (x, y, clientXRatio, clientYRatio, captureAspectRatio);
         trace.Entries.Add($"move:{x},{y}");
     }
 

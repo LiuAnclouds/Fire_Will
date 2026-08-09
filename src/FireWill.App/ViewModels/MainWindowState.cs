@@ -308,7 +308,8 @@ public sealed class FarmRowViewModel : BindableObject
         int x,
         int y,
         double? clientXRatio = null,
-        double? clientYRatio = null)
+        double? clientYRatio = null,
+        double? clientCaptureAspectRatio = null)
     {
         _model.TargetX = x;
         _model.TargetY = y;
@@ -316,6 +317,9 @@ public sealed class FarmRowViewModel : BindableObject
         {
             _model.TargetClientXRatio = clientXRatio;
             _model.TargetClientYRatio = clientYRatio;
+            _model.TargetClientCaptureAspectRatio = IsValidAspectRatio(clientCaptureAspectRatio)
+                ? clientCaptureAspectRatio
+                : null;
         }
         else
         {
@@ -343,6 +347,7 @@ public sealed class FarmRowViewModel : BindableObject
     {
         _model.TargetClientXRatio = null;
         _model.TargetClientYRatio = null;
+        _model.TargetClientCaptureAspectRatio = null;
     }
 
     private static bool IsValidRatioPair(double? x, double? y) =>
@@ -350,6 +355,9 @@ public sealed class FarmRowViewModel : BindableObject
         y is >= 0d and <= 1d &&
         double.IsFinite(x.Value) &&
         double.IsFinite(y.Value);
+
+    private static bool IsValidAspectRatio(double? value) =>
+        value is > 0d && double.IsFinite(value.Value);
 
     private void SetNormalized(string value, string current, Action<string> setter)
     {
@@ -757,7 +765,8 @@ public sealed class NpcRowViewModel : BindableObject
         int x,
         int y,
         double? clientXRatio = null,
-        double? clientYRatio = null)
+        double? clientYRatio = null,
+        double? clientCaptureAspectRatio = null)
     {
         _model.X = x;
         _model.Y = y;
@@ -765,6 +774,9 @@ public sealed class NpcRowViewModel : BindableObject
         {
             _model.ClientXRatio = clientXRatio;
             _model.ClientYRatio = clientYRatio;
+            _model.ClientCaptureAspectRatio = IsValidAspectRatio(clientCaptureAspectRatio)
+                ? clientCaptureAspectRatio
+                : null;
         }
         else
         {
@@ -797,6 +809,7 @@ public sealed class NpcRowViewModel : BindableObject
     {
         _model.ClientXRatio = null;
         _model.ClientYRatio = null;
+        _model.ClientCaptureAspectRatio = null;
     }
 
     private static bool IsValidRatioPair(double? x, double? y) =>
@@ -804,6 +817,9 @@ public sealed class NpcRowViewModel : BindableObject
         y is >= 0d and <= 1d &&
         double.IsFinite(x.Value) &&
         double.IsFinite(y.Value);
+
+    private static bool IsValidAspectRatio(double? value) =>
+        value is > 0d && double.IsFinite(value.Value);
 
     private void SetCoordinate(string value, int? current, Action<int?> setter)
     {

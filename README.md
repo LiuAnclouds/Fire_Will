@@ -12,7 +12,7 @@ AutoHotkey v2 配置器为行为基线，重写为单进程 .NET 10 WPF 应用�
 - 12 个技能栏按键和 6 个装备栏按键映射。
 - 全局键盘、侧键和中键热键；仅在已绑定游戏窗口前台时触发。
 - F5/F6 采集与切换刷本目标，F7/F8 采集与切换 NPC。
-- 新采集的 NPC 与技能落点使用 War3 客户区比例坐标，窗口移动或等比例缩放后自动换算。
+- 新采集的 NPC 与技能落点会保存 War3 客户区比例和采集时宽高比；窗口移动、等比例或不等比例缩放后，点击前按当前窗口实时换算。
 - 单击停止，350ms 内再次按停止键恢复；退出前等待按键释放和钩子卸载。
 - 自动查找 War3、手动绑定平台窗口、前台窗口诊断和单实例运行。
 - 须佐斑、流年佐助、动态流转三种视频背景，以及透明度持久化。
@@ -38,12 +38,20 @@ dotnet test FireWill.slnx -c Release --no-restore
 dotnet run --project tools/wallpaper/smoke-tests/BackgroundSmokeTests.csproj -c Release
 ```
 
-生成低于 500MB、请求管理员权限的自包含单文件 EXE：
+生成低于 500MB、请求管理员权限的自包含单文件 EXE。先清理已确认位于仓库内的发布目录，避免上个版本的 PDB 或其他残留文件混入：
 
 ```powershell
+$repoRoot = (Resolve-Path .).Path
+if (-not (Test-Path -LiteralPath (Join-Path $repoRoot "FireWill.slnx"))) {
+  throw "请先切换到 Fire Will 仓库根目录。"
+}
+$publishDir = Join-Path $repoRoot "artifacts/publish/win-x64"
+if (Test-Path -LiteralPath $publishDir) {
+  Remove-Item -LiteralPath $publishDir -Recurse -Force
+}
 dotnet publish src/FireWill.App/FireWill.App.csproj `
   -c Release -r win-x64 --self-contained true `
-  -o artifacts/publish/win-x64
+  -o $publishDir
 ```
 
 发布目录最终只需分发 `Fire Will.exe`。
@@ -58,5 +66,7 @@ dotnet publish src/FireWill.App/FireWill.App.csproj `
 - `%LOCALAPPDATA%\FireWill\BackgroundCache\`
 - `%LOCALAPPDATA%\FireWill\logs\`
 
-旧配置中的绝对坐标仍可直接使用。旧点位需要在原本可正常点击的 War3 窗口尺寸下重新采集一次，
-新保存的点位才会获得窗口缩放自适应能力。
+纯旧配置中的绝对坐标仍可直接使用，但不会随窗口缩放。开始采集自适应点位后，同一流程用到的
+NPC 点和技能目标点必须全部重新采集，程序会在执行前列出遗漏点位并停止，避免新旧坐标混用而误点。
+`0.1.3` 保存的比例坐标没有记录采集时宽高比，也需要在 `0.1.4` 中重新采集一次；以后移动窗口、
+任意改变窗口宽高或恢复原尺寸，都由同一套实时换算处理，不需要再次录入。

@@ -248,7 +248,8 @@ public sealed class FlowScheduler
                     move.X,
                     move.Y,
                     move.ClientXRatio,
-                    move.ClientYRatio);
+                    move.ClientYRatio,
+                    move.CaptureAspectRatio);
                 break;
 
             case LeftClickAction click:

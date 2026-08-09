@@ -122,6 +122,9 @@ public static class LegacyIniProfileSerializer
             (npc.ClientXRatio, npc.ClientYRatio) = ParseClientRatioPair(
                 document.Get(section, "clientXRatio"),
                 document.Get(section, "clientYRatio"));
+            npc.ClientCaptureAspectRatio = npc.ClientXRatio is not null
+                ? ParseCaptureAspectRatio(document.Get(section, "clientCaptureAspectRatio"))
+                : null;
 
             if (npc.X is not null && npc.Y is not null)
             {
@@ -162,6 +165,10 @@ public static class LegacyIniProfileSerializer
             (farm.TargetClientXRatio, farm.TargetClientYRatio) = ParseClientRatioPair(
                 GetWithLegacyFallback(document, section, legacySection, "targetClientXRatio", string.Empty),
                 GetWithLegacyFallback(document, section, legacySection, "targetClientYRatio", string.Empty));
+            farm.TargetClientCaptureAspectRatio = farm.TargetClientXRatio is not null
+                ? ParseCaptureAspectRatio(
+                    GetWithLegacyFallback(document, section, legacySection, "targetClientCaptureAspectRatio", string.Empty))
+                : null;
         }
     }
 
@@ -266,6 +273,13 @@ public static class LegacyIniProfileSerializer
             "clientYRatio",
             npc.ClientXRatio,
             npc.ClientYRatio);
+        WriteCaptureAspectRatio(
+            document,
+            section,
+            "clientCaptureAspectRatio",
+            npc.ClientCaptureAspectRatio,
+            npc.ClientXRatio,
+            npc.ClientYRatio);
     }
 
     private static void WriteFarm(IniDocument document, FarmSettings farm)
@@ -282,6 +296,13 @@ public static class LegacyIniProfileSerializer
             section,
             "targetClientXRatio",
             "targetClientYRatio",
+            farm.TargetClientXRatio,
+            farm.TargetClientYRatio);
+        WriteCaptureAspectRatio(
+            document,
+            section,
+            "targetClientCaptureAspectRatio",
+            farm.TargetClientCaptureAspectRatio,
             farm.TargetClientXRatio,
             farm.TargetClientYRatio);
     }
@@ -389,6 +410,19 @@ public static class LegacyIniProfileSerializer
                 : (null, null);
     }
 
+    private static double? ParseCaptureAspectRatio(string? value)
+    {
+        return double.TryParse(
+                value,
+                NumberStyles.Float,
+                CultureInfo.InvariantCulture,
+                out var parsed) &&
+            double.IsFinite(parsed) &&
+            parsed > 0d
+                ? parsed
+                : null;
+    }
+
     private static bool TryParseClientRatio(string? value, out double result)
     {
         return double.TryParse(
@@ -418,6 +452,27 @@ public static class LegacyIniProfileSerializer
 
         document.Set(section, xKey, Format(x));
         document.Set(section, yKey, Format(y));
+    }
+
+    private static void WriteCaptureAspectRatio(
+        IniDocument document,
+        string section,
+        string key,
+        double? aspectRatio,
+        double? x,
+        double? y)
+    {
+        if (x is not (>= 0d and <= 1d) ||
+            y is not (>= 0d and <= 1d) ||
+            !double.IsFinite(x.Value) ||
+            !double.IsFinite(y.Value) ||
+            aspectRatio is not > 0d ||
+            !double.IsFinite(aspectRatio.Value))
+        {
+            return;
+        }
+
+        document.Set(section, key, Format(aspectRatio));
     }
 
     private static int RoundLikeAhk(double value)

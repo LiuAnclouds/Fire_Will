@@ -104,6 +104,8 @@ public sealed class NpcSettings
     public double? ClientXRatio { get; set; }
 
     public double? ClientYRatio { get; set; }
+
+    public double? ClientCaptureAspectRatio { get; set; }
 }
 
 public sealed class FarmSettings
@@ -127,6 +129,8 @@ public sealed class FarmSettings
     public double? TargetClientXRatio { get; set; }
 
     public double? TargetClientYRatio { get; set; }
+
+    public double? TargetClientCaptureAspectRatio { get; set; }
 }
 
 public sealed class FlowSettings

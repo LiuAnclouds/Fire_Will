@@ -11,15 +11,17 @@ public sealed class AdaptivePointViewModelTests
         var model = new NpcSettings { Name = "NPC" };
         var viewModel = new NpcRowViewModel(model);
 
-        viewModel.SetPoint(843, 413, 0.4, 0.6);
+        viewModel.SetPoint(843, 413, 0.4, 0.6, 16d / 9d);
 
         Assert.Equal((843, 413), (model.X, model.Y));
         Assert.Equal((0.4, 0.6), (model.ClientXRatio, model.ClientYRatio));
+        Assert.Equal(16d / 9d, model.ClientCaptureAspectRatio);
 
         viewModel.X = "844";
 
         Assert.Null(model.ClientXRatio);
         Assert.Null(model.ClientYRatio);
+        Assert.Null(model.ClientCaptureAspectRatio);
     }
 
     [Fact]
@@ -33,10 +35,11 @@ public sealed class AdaptivePointViewModelTests
         };
         var viewModel = new FarmRowViewModel(model);
 
-        viewModel.SetTarget(942, 705, 0.5, 0.75);
+        viewModel.SetTarget(942, 705, 0.5, 0.75, 16d / 9d);
 
         Assert.Equal((942, 705), (model.TargetX, model.TargetY));
         Assert.Equal((0.5, 0.75), (model.TargetClientXRatio, model.TargetClientYRatio));
+        Assert.Equal(16d / 9d, model.TargetClientCaptureAspectRatio);
 
         viewModel.Clear();
 
@@ -44,6 +47,7 @@ public sealed class AdaptivePointViewModelTests
         Assert.Null(model.TargetY);
         Assert.Null(model.TargetClientXRatio);
         Assert.Null(model.TargetClientYRatio);
+        Assert.Null(model.TargetClientCaptureAspectRatio);
     }
 
     [Fact]
@@ -57,5 +61,6 @@ public sealed class AdaptivePointViewModelTests
         Assert.Equal((100, 200), (model.X, model.Y));
         Assert.Null(model.ClientXRatio);
         Assert.Null(model.ClientYRatio);
+        Assert.Null(model.ClientCaptureAspectRatio);
     }
 }

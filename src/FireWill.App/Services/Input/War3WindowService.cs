@@ -7,9 +7,9 @@ namespace FireWill.App.Services.Input;
 
 public readonly record struct ScreenRectangle(int X, int Y, int Width, int Height)
 {
-    public int Right => checked(X + Width);
+    public long Right => (long)X + Width;
 
-    public int Bottom => checked(Y + Height);
+    public long Bottom => (long)Y + Height;
 
     public bool Contains(ScreenPoint point) =>
         point.X >= X && point.X < Right && point.Y >= Y && point.Y < Bottom;
@@ -24,7 +24,13 @@ public sealed record War3WindowBinding(
     string ProcessName,
     string WindowTitle,
     string WindowClass,
-    ScreenRectangle ClientBounds);
+    ScreenRectangle ClientBounds,
+    ScreenRectangle WindowBounds)
+{
+    public ScreenProjectionContext ProjectionContext => new(
+        ClientBounds,
+        WindowBounds.Width / (double)WindowBounds.Height);
+}
 
 public sealed class War3WindowService
 {
@@ -119,6 +125,7 @@ public sealed class War3WindowService
         NativeMethods.EnumWindowsProc callback = (windowHandle, _) =>
         {
             if (!NativeMethods.IsWindowVisible(windowHandle) ||
+                NativeMethods.IsIconic(windowHandle) ||
                 !TryReadWindow(windowHandle, requireAcceptedProcess: true, out var candidate) ||
                 candidate.ClientBounds.Width <= 0 || candidate.ClientBounds.Height <= 0)
             {
@@ -198,6 +205,18 @@ public sealed class War3WindowService
 
     public bool TryGetBoundClientBounds(out ScreenRectangle clientBounds)
     {
+        if (!TryGetBoundProjectionContext(out var context))
+        {
+            clientBounds = default;
+            return false;
+        }
+
+        clientBounds = context.ClientBounds;
+        return true;
+    }
+
+    public bool TryGetBoundProjectionContext(out ScreenProjectionContext context)
+    {
         War3WindowBinding? current;
         lock (bindingLock)
         {
@@ -206,12 +225,14 @@ public sealed class War3WindowService
 
         if (current is null ||
             !NativeMethods.IsWindow(current.WindowHandle) ||
+            !NativeMethods.IsWindowVisible(current.WindowHandle) ||
             NativeMethods.IsIconic(current.WindowHandle) ||
             NativeMethods.GetWindowThreadProcessId(current.WindowHandle, out var processId) == 0 ||
             processId != current.ProcessId ||
-            !TryGetClientBounds(current.WindowHandle, out clientBounds))
+            !TryGetClientBounds(current.WindowHandle, out var clientBounds) ||
+            !TryGetWindowBounds(current.WindowHandle, out var windowBounds))
         {
-            clientBounds = default;
+            context = default;
             return false;
         }
 
@@ -220,24 +241,31 @@ public sealed class War3WindowService
             if (binding?.WindowHandle == current.WindowHandle &&
                 binding.ProcessId == current.ProcessId)
             {
-                binding = current with { ClientBounds = clientBounds };
+                binding = current with
+                {
+                    ClientBounds = clientBounds,
+                    WindowBounds = windowBounds,
+                };
             }
         }
 
+        context = new ScreenProjectionContext(
+            clientBounds,
+            windowBounds.Width / (double)windowBounds.Height);
         return true;
     }
 
     public bool TryGetClientPointOnScreen(int clientX, int clientY, out ScreenPoint point)
     {
-        if (!TryGetBinding(out var current) ||
-            clientX < 0 || clientX >= current.ClientBounds.Width ||
-            clientY < 0 || clientY >= current.ClientBounds.Height)
+        if (!TryGetBoundProjectionContext(out var context) ||
+            clientX < 0 || clientX >= context.ClientBounds.Width ||
+            clientY < 0 || clientY >= context.ClientBounds.Height)
         {
             point = default;
             return false;
         }
 
-        point = current.ClientBounds.PointFromClient(clientX, clientY);
+        point = context.ClientBounds.PointFromClient(clientX, clientY);
         return true;
     }
 
@@ -278,7 +306,8 @@ public sealed class War3WindowService
         if (windowHandle == 0 || !NativeMethods.IsWindow(windowHandle) ||
             NativeMethods.GetWindowThreadProcessId(windowHandle, out var processId) == 0 ||
             processId == 0 ||
-            !TryGetClientBounds(windowHandle, out var clientBounds))
+            !TryGetClientBounds(windowHandle, out var clientBounds) ||
+            !TryGetWindowBounds(windowHandle, out var windowBounds))
         {
             return false;
         }
@@ -295,7 +324,8 @@ public sealed class War3WindowService
             processName,
             GetWindowTitle(windowHandle),
             GetWindowClass(windowHandle),
-            clientBounds);
+            clientBounds,
+            windowBounds);
         return true;
     }
 
@@ -339,14 +369,47 @@ public sealed class War3WindowService
             return false;
         }
 
-        var width = clientRectangle.Right - clientRectangle.Left;
-        var height = clientRectangle.Bottom - clientRectangle.Top;
-        if (width <= 0 || height <= 0)
+        return TryCreateRectangle(
+            topLeft.X,
+            topLeft.Y,
+            (long)topLeft.X + clientRectangle.Right - clientRectangle.Left,
+            (long)topLeft.Y + clientRectangle.Bottom - clientRectangle.Top,
+            out bounds);
+    }
+
+    private static bool TryGetWindowBounds(nint windowHandle, out ScreenRectangle bounds)
+    {
+        bounds = default;
+        if (!NativeMethods.GetWindowRect(windowHandle, out var rectangle))
         {
             return false;
         }
 
-        bounds = new ScreenRectangle(topLeft.X, topLeft.Y, width, height);
+        return TryCreateRectangle(
+            rectangle.Left,
+            rectangle.Top,
+            rectangle.Right,
+            rectangle.Bottom,
+            out bounds);
+    }
+
+    internal static bool TryCreateRectangle(
+        int left,
+        int top,
+        long right,
+        long bottom,
+        out ScreenRectangle bounds)
+    {
+        var width = right - left;
+        var height = bottom - top;
+        if (width <= 0 || width > int.MaxValue ||
+            height <= 0 || height > int.MaxValue)
+        {
+            bounds = default;
+            return false;
+        }
+
+        bounds = new ScreenRectangle(left, top, (int)width, (int)height);
         return true;
     }
 
