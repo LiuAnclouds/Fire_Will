@@ -287,11 +287,33 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <StackPanel VerticalAlignment="Center">
-                        <TextBlock FontSize="28" FontWeight="SemiBold" Text="Fire Will" />
-                        <TextBlock Margin="1,3,0,0"
-                                   FontSize="12"
-                                   Foreground="{StaticResource TextSecondaryBrush}"
-                                   Text="羁绊I丶无限月读宏" />
+                        <TextBlock FontFamily="{StaticResource BrandFont}"
+                                   FontSize="31"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource BrandBrush}"
+                                   Text="火之意志">
+                            <TextBlock.Effect>
+                                <DropShadowEffect BlurRadius="7"
+                                                  Color="#CC000000"
+                                                  Direction="270"
+                                                  Opacity="0.8"
+                                                  ShadowDepth="2" />
+                            </TextBlock.Effect>
+                        </TextBlock>
+                        <TextBlock Margin="2,1,0,0"
+                                   FontFamily="{StaticResource MottoFont}"
+                                   FontSize="17"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource MottoBrush}"
+                                   Text="木叶飞舞之处，火亦生生不息">
+                            <TextBlock.Effect>
+                                <DropShadowEffect BlurRadius="5"
+                                                  Color="#CC000000"
+                                                  Direction="270"
+                                                  Opacity="0.75"
+                                                  ShadowDepth="1" />
+                            </TextBlock.Effect>
+                        </TextBlock>
                     </StackPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Margin="0,0,8,0" VerticalAlignment="Center" Text="动态背景" />
@@ -648,7 +670,7 @@
                     <TextBlock Grid.Column="2"
                                VerticalAlignment="Center"
                                Foreground="{StaticResource TextSecondaryBrush}"
-                               Text="v0.1.1" />
+                               Text="v0.1.2" />
                 </Grid>
             </Grid>
         </Viewbox>

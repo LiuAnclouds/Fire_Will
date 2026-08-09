@@ -3,10 +3,14 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Application.Resources>
         <FontFamily x:Key="UiFont">Microsoft YaHei UI</FontFamily>
+        <FontFamily x:Key="BrandFont">STKaiti, KaiTi, Microsoft YaHei UI</FontFamily>
+        <FontFamily x:Key="MottoFont">STXingkai, 华文行楷, KaiTi, Microsoft YaHei UI</FontFamily>
 
         <SolidColorBrush x:Key="TextPrimaryBrush" Color="#FFF4F5F7" />
         <SolidColorBrush x:Key="TextSecondaryBrush" Color="#FFCBD0D8" />
         <SolidColorBrush x:Key="AccentBrush" Color="#FFE3533F" />
+        <SolidColorBrush x:Key="BrandBrush" Color="#FFFFE7BD" />
+        <SolidColorBrush x:Key="MottoBrush" Color="#FFF0B56D" />
         <SolidColorBrush x:Key="ControlBrush" Color="#C722252A" />
         <SolidColorBrush x:Key="ControlHoverBrush" Color="#E134383E" />
         <SolidColorBrush x:Key="ControlBorderBrush" Color="#807F8793" />
