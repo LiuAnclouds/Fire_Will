@@ -108,53 +108,71 @@
         </Style>
 
         <DataTemplate x:Key="FarmRowTemplate">
-            <Grid Width="1320" Height="48">
+            <Grid Width="1320" Height="52">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="250" />
-                    <ColumnDefinition Width="145" />
-                    <ColumnDefinition Width="170" />
-                    <ColumnDefinition Width="145" />
-                    <ColumnDefinition Width="130" />
-                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="644" />
+                    <ColumnDefinition Width="32" />
+                    <ColumnDefinition Width="644" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0"
-                           VerticalAlignment="Center"
-                           FontSize="14"
-                           Text="{Binding Name}" />
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBox Width="92"
-                             Style="{StaticResource CompactTextBox}"
-                             Text="{Binding ActionKey, UpdateSourceTrigger=PropertyChanged}" />
-                    <Button Style="{StaticResource SmallButton}"
-                            Content="采"
-                            ToolTip="采集动作键"
-                            Click="CaptureFarmActionKey_Click" />
-                </StackPanel>
-                <ComboBox Grid.Column="2"
-                          Width="150"
-                          HorizontalAlignment="Left"
-                          VerticalAlignment="Center"
-                          ItemsSource="{Binding DataContext.ReleaseTypeOptions, RelativeSource={RelativeSource AncestorType=Window}}"
-                          SelectedItem="{Binding ReleaseType, UpdateSourceTrigger=PropertyChanged}" />
-                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBox Width="92"
-                             Style="{StaticResource CompactTextBox}"
-                             Text="{Binding ReleaseKey, UpdateSourceTrigger=PropertyChanged}" />
-                    <Button Style="{StaticResource SmallButton}"
-                            Content="采"
-                            ToolTip="采集释放键"
-                            Click="CaptureFarmReleaseKey_Click" />
-                </StackPanel>
-                <Button Grid.Column="4"
-                        Width="112"
-                        HorizontalAlignment="Left"
-                        VerticalAlignment="Center"
-                        Content="记录技能点"
-                        Click="CaptureFarmPoint_Click" />
-                <TextBlock Grid.Column="5"
-                           VerticalAlignment="Center"
-                           Foreground="{StaticResource TextSecondaryBrush}"
-                           Text="{Binding NpcAction}" />
+                <Grid x:Name="TaskStartFields">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="280" />
+                        <ColumnDefinition Width="140" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock VerticalAlignment="Center"
+                               FontSize="14"
+                               Text="{Binding Name}" />
+                    <TextBlock Grid.Column="1"
+                               VerticalAlignment="Center"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               Text="{Binding NpcAction}" />
+                    <StackPanel Grid.Column="2"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center">
+                        <TextBox Width="92"
+                                 Style="{StaticResource CompactTextBox}"
+                                 Text="{Binding ActionKey, UpdateSourceTrigger=PropertyChanged}" />
+                        <Button Style="{StaticResource SmallButton}"
+                                Content="采"
+                                ToolTip="采集启动按键"
+                                Click="CaptureFarmActionKey_Click" />
+                    </StackPanel>
+                </Grid>
+                <Border Grid.Column="1"
+                        Width="1"
+                        Margin="0,7"
+                        HorizontalAlignment="Center"
+                        Background="{StaticResource LineBrush}" />
+                <Grid x:Name="SkillReleaseFields" Grid.Column="2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="190" />
+                        <ColumnDefinition Width="180" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <ComboBox Width="170"
+                              HorizontalAlignment="Left"
+                              VerticalAlignment="Center"
+                              ItemsSource="{Binding DataContext.ReleaseTypeOptions, RelativeSource={RelativeSource AncestorType=Window}}"
+                              SelectedItem="{Binding ReleaseType, UpdateSourceTrigger=PropertyChanged}" />
+                    <StackPanel Grid.Column="1"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center">
+                        <TextBox Width="92"
+                                 Style="{StaticResource CompactTextBox}"
+                                 Text="{Binding ReleaseKey, UpdateSourceTrigger=PropertyChanged}" />
+                        <Button Style="{StaticResource SmallButton}"
+                                Content="采"
+                                ToolTip="采集释放按键"
+                                Click="CaptureFarmReleaseKey_Click" />
+                    </StackPanel>
+                    <Button Grid.Column="2"
+                            Width="112"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Center"
+                            Content="记录技能点"
+                            Click="CaptureFarmPoint_Click" />
+                </Grid>
             </Grid>
         </DataTemplate>
 
@@ -486,21 +504,57 @@
                                 <RowDefinition Height="*" />
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
-                            <Grid Width="1320" Height="34">
+                            <Grid Width="1320" Height="58">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="250" />
-                                    <ColumnDefinition Width="145" />
-                                    <ColumnDefinition Width="170" />
-                                    <ColumnDefinition Width="145" />
-                                    <ColumnDefinition Width="130" />
-                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="644" />
+                                    <ColumnDefinition Width="32" />
+                                    <ColumnDefinition Width="644" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Style="{StaticResource ColumnHeading}" Text="刷本项" />
-                                <TextBlock Grid.Column="1" Style="{StaticResource ColumnHeading}" Text="动作键" />
-                                <TextBlock Grid.Column="2" Style="{StaticResource ColumnHeading}" Text="释放类型" />
-                                <TextBlock Grid.Column="3" Style="{StaticResource ColumnHeading}" Text="键 / 槽位" />
-                                <TextBlock Grid.Column="4" Style="{StaticResource ColumnHeading}" Text="鼠标点" />
-                                <TextBlock Grid.Column="5" Style="{StaticResource ColumnHeading}" Text="任务动作" />
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="28" />
+                                        <RowDefinition Height="30" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                               Text="任务启动" />
+                                    <Grid Grid.Row="1">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="280" />
+                                            <ColumnDefinition Width="140" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Style="{StaticResource ColumnHeading}" Text="刷本项" />
+                                        <TextBlock Grid.Column="1" Style="{StaticResource ColumnHeading}" Text="任务动作" />
+                                        <TextBlock Grid.Column="2" Style="{StaticResource ColumnHeading}" Text="启动按键" />
+                                    </Grid>
+                                </Grid>
+                                <Border Grid.Column="1"
+                                        Width="1"
+                                        Margin="0,4"
+                                        HorizontalAlignment="Center"
+                                        Background="{StaticResource LineBrush}" />
+                                <Grid Grid.Column="2">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="28" />
+                                        <RowDefinition Height="30" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                               Text="技能释放" />
+                                    <Grid Grid.Row="1">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="190" />
+                                            <ColumnDefinition Width="180" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Style="{StaticResource ColumnHeading}" Text="释放方式" />
+                                        <TextBlock Grid.Column="1" Style="{StaticResource ColumnHeading}" Text="技能键 / 槽位" />
+                                        <TextBlock Grid.Column="2" Style="{StaticResource ColumnHeading}" Text="技能点" />
+                                    </Grid>
+                                </Grid>
                             </Grid>
                             <ItemsControl x:Name="FarmItemsControl"
                                           Grid.Row="1"
@@ -773,7 +827,7 @@
                     <TextBlock Grid.Column="2"
                                VerticalAlignment="Center"
                                Foreground="{StaticResource TextSecondaryBrush}"
-                               Text="v0.1.7" />
+                               Text="v0.1.8" />
                 </Grid>
             </Grid>
         </Viewbox>
